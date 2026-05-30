@@ -158,12 +158,34 @@ tfoot td{font-weight:600;background:var(--bg);border-top:1px solid var(--border2
 
 <div class="app">
   <div class="header">
-    <div class="header-left">
-      <h1>Daily Sales Dashboard</h1>
-      <p>Aptitude &amp; Slice45 — All Branches</p>
-    </div>
-    <span class="date-chip" id="datechip"></span>
+  <div class="header-left">
+    <h1>Daily Sales Dashboard</h1>
+    <p>Aptitude &amp; Slice45 — All Branches</p>
   </div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+
+```
+<a href="budget-dashboard.html"
+   style="
+    background:#2563EB;
+    color:white;
+    text-decoration:none;
+    padding:8px 16px;
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    box-shadow:0 1px 3px rgba(0,0,0,.1);
+   ">
+   📊 Budget Dashboard
+</a>
+
+<span class="date-chip" id="datechip"></span>
+```
+
+  </div>
+</div>
+
 
   <div class="nav">
     <button class="nav-btn active" onclick="showView('entry')" id="nb-entry">Daily entry</button>
