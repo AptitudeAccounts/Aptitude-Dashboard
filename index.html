@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -228,6 +229,35 @@ async function api(action,payload={}){
   if(!data.ok)throw new Error(data.error||'Request failed');
   return data;
 }
+function getPublicDataJsonp(){
+  return new Promise((resolve,reject)=>{
+    if(!scriptConfigured()) return reject(new Error('Google Sheet is not connected yet'));
+    const cb='aptDashPublic_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const script=document.createElement('script');
+    const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
+    let done=false;
+    const cleanup=()=>{
+      if(script.parentNode) script.parentNode.removeChild(script);
+      try{delete window[cb]}catch(e){window[cb]=undefined}
+    };
+    const timer=setTimeout(()=>{
+      if(done)return;
+      done=true;cleanup();reject(new Error('Google Sheet public data request timed out'));
+    },12000);
+    window[cb]=(data)=>{
+      if(done)return;
+      done=true;clearTimeout(timer);cleanup();
+      if(data&&data.ok) resolve(data);
+      else reject(new Error((data&&data.error)||'Could not load public data'));
+    };
+    script.onerror=()=>{
+      if(done)return;
+      done=true;clearTimeout(timer);cleanup();reject(new Error('Could not reach Google Sheet public data endpoint'));
+    };
+    script.src=GOOGLE_SCRIPT_URL+sep+'action=getPublicData&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+    document.head.appendChild(script);
+  });
+}
 async function loginAdmin(){
   try{
     const username=document.getElementById('loginUser').value.trim();
@@ -244,7 +274,14 @@ function logoutAdmin(){clearAuth();role='viewer';renderAll();toast('Logged out. 
 async function refreshFromCloud(silent=false){
   if(!scriptConfigured()){cloudReady=false;updateModeUI();return}
   try{
-    const data=await api('getPublicData',{});
+    let data;
+    try{
+      // Public viewers load data through JSONP so GitHub Pages can read Google Apps Script reliably.
+      data=await getPublicDataJsonp();
+    }catch(jsonpErr){
+      // Fallback for environments where normal POST works.
+      data=await api('getPublicData',{});
+    }
     if(data.db){db=data.db;saveDBLocalOnly();cloudReady=true;initSessionFromDate();renderAll()}
     if(!silent)toast('Records loaded from Google Sheet ✓');
   }catch(e){cloudReady=false;updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
