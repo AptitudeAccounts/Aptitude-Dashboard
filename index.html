@@ -119,6 +119,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <button class="nav-btn" onclick="showView('ytd')" id="nb-ytd">YTD</button>
     <button class="nav-btn" onclick="showView('history')" id="nb-history">History</button>
     <button class="nav-btn" onclick="showView('budget')" id="nb-budget">Branchwise budgeting</button>
+    <button class="nav-btn" onclick="showView('breakeven')" id="nb-breakeven">ARC Al Nahyan Delivery</button>
   </div>
 
   <div class="print-only" id="printHeader" style="margin-bottom:14px">
@@ -133,6 +134,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div id="view-ytd" style="display:none"></div>
   <div id="view-history" style="display:none"></div>
   <div id="view-budget" style="display:none"></div>
+  <div id="view-breakeven" style="display:none"></div>
 </div>
 <div id="dailyPdfReport"></div>
 <div class="login-panel" id="loginPanel">
@@ -162,6 +164,7 @@ const DEFAULT_BRANCHES=[
 ];
 const KEY='aptslice_dashboard_v3';
 const OLD_KEY='aptslice_sales_v2';
+const DELIVERY_BRANCH_ID='arc_al_nahyan';
 
 /*
   GOOGLE SHEETS CONNECTION
@@ -171,7 +174,7 @@ const OLD_KEY='aptslice_sales_v2';
 */
 const GOOGLE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwxQQw_rS86Ev1d8X2s9lghtQqfdg5qZDAAlCqu9a6gjobvBuzEaBNHJTskt8t7NyuURg/exec';
 const AUTH_KEY='aptslice_admin_session_v1';
-const blankEntry=()=>({gross:0,food:0,bev:0,retail:0,costOfSales:0,cash:0,visa:0,master:0,bank:0,talabat:0,deliveroo:0,discounts:0,takeawayCustomers:0,takeawaySales:0,covers:0,dineInSales:0,thirdPartyCustomers:0,thirdPartySales:0,transactions:0,saved:false});
+const blankEntry=()=>({gross:0,food:0,bev:0,retail:0,costOfSales:0,cash:0,visa:0,master:0,bank:0,talabat:0,deliveroo:0,talabatOrders:0,deliverooOrders:0,discounts:0,takeawayCustomers:0,takeawaySales:0,covers:0,dineInSales:0,thirdPartyCustomers:0,thirdPartySales:0,transactions:0,saved:false});
 let db=loadDB();
 let activeB=0,curView='summary',entryDate=today(),selectedDay=today(),selectedMonth=today().substring(0,7),selectedYear=new Date().getFullYear(),role='viewer';
 let session={};
@@ -327,8 +330,8 @@ function initSessionFromDate(){
 }
 function setEntryDate(v){entryDate=v||today();initSessionFromDate();renderEntry()}
 
-function showView(v){curView=v;['entry','summary','mtd','ytd','history','budget'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
-function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else renderEntry()}
+function showView(v){curView=v;['entry','summary','mtd','ytd','history','budget','breakeven'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
+function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else renderEntry()}
 function renderAll(){updateModeUI();renderCurrent()}
 function switchB(i){activeB=i;renderEntry()}
 function upd(bid,f,v){
@@ -400,7 +403,8 @@ function renderEntry(){
   <div class="calc-strip"><div class="ci"><div class="cl">Ex. VAT</div><div class="cv" id="entry-exv">${fmtN(exV)}</div></div><div class="ci"><div class="cl">VAT 5%</div><div class="cv blue" id="entry-vat">${fmtN(vatA)}</div></div><div class="ci"><div class="cl">Avg / cover</div><div class="cv" id="entry-avg-cover">${d.covers>0?fmtN(exV/d.covers):'—'}</div></div><div class="ci"><div class="cl">Avg / txn</div><div class="cv" id="entry-avg-txn">${d.transactions>0?fmtN(d.gross/d.transactions):'—'}</div></div></div>
   <div class="section-lbl">Revenue mix — automatic</div><div class="grid-3"><div class="fld"><label>Food 75% of gross (AED)</label><input id="entry-food-input" type="number" min="0" step="0.01" value="${d.food||''}" readonly ${disabled}/></div><div class="fld"><label>Beverages 20% of gross (AED)</label><input id="entry-bev-input" type="number" min="0" step="0.01" value="${d.bev||''}" readonly ${disabled}/></div><div class="fld"><label>Retail 5% of gross (AED)</label><input id="entry-retail-input" type="number" min="0" step="0.01" value="${d.retail||''}" readonly ${disabled}/></div></div>
     <div class="section-lbl">Cost of sales</div><div class="grid-2"><div class="fld"><label>Cost of sales / COGS (AED) — auto 27% of gross</label><input id="entry-cogs-input" type="number" min="0" step="0.01" value="${d.costOfSales||''}" readonly ${disabled}/></div><div class="fld"><label>Gross profit after COGS</label><input id="entry-gp" value="${fmtN(exV-(d.costOfSales||0))}" disabled></div></div>
-  <div class="section-lbl">Payment breakdown</div><div class="grid-4"><div class="fld"><label>Qlub (AED)</label><input type="number" min="0" step="0.01" value="${d.cash||''}" oninput="upd('${b.id}','cash',this.value)" ${disabled}/></div><div class="fld"><label>Visa (AED)</label><input type="number" min="0" step="0.01" value="${d.visa||''}" oninput="upd('${b.id}','visa',this.value)" ${disabled}/></div><div class="fld"><label>Mastercard (AED)</label><input type="number" min="0" step="0.01" value="${d.master||''}" oninput="upd('${b.id}','master',this.value)" ${disabled}/></div><div class="fld"><label>Bank transfer (AED)</label><input type="number" min="0" step="0.01" value="${d.bank||''}" oninput="upd('${b.id}','bank',this.value)" ${disabled}/></div><div class="fld"><label>Talabat (AED)</label><input type="number" min="0" step="0.01" value="${d.talabat||''}" oninput="upd('${b.id}','talabat',this.value)" ${disabled}/></div><div class="fld"><label>Deliveroo (AED)</label><input type="number" min="0" step="0.01" value="${d.deliveroo||''}" oninput="upd('${b.id}','deliveroo',this.value)" ${disabled}/></div></div>
+  <div class="section-lbl">Payment breakdown</div><div class="grid-4"><div class="fld"><label>Qlub (AED)</label><input type="number" min="0" step="0.01" value="${d.cash||''}" oninput="upd('${b.id}','cash',this.value)" ${disabled}/></div><div class="fld"><label>Visa (AED)</label><input type="number" min="0" step="0.01" value="${d.visa||''}" oninput="upd('${b.id}','visa',this.value)" ${disabled}/></div><div class="fld"><label>Mastercard (AED)</label><input type="number" min="0" step="0.01" value="${d.master||''}" oninput="upd('${b.id}','master',this.value)" ${disabled}/></div><div class="fld"><label>Bank transfer (AED)</label><input type="number" min="0" step="0.01" value="${d.bank||''}" oninput="upd('${b.id}','bank',this.value)" ${disabled}/></div></div>
+  ${b.id===DELIVERY_BRANCH_ID?`<div class="section-lbl">Delivery platforms — ARC Al Nahyan only</div><div class="grid-4"><div class="fld"><label>Talabat orders</label><input type="number" min="0" step="1" value="${d.talabatOrders||''}" oninput="upd('${b.id}','talabatOrders',this.value)" ${disabled}/></div><div class="fld"><label>Talabat sale (AED)</label><input type="number" min="0" step="0.01" value="${d.talabat||''}" oninput="upd('${b.id}','talabat',this.value)" ${disabled}/></div><div class="fld"><label>Deliveroo orders</label><input type="number" min="0" step="1" value="${d.deliverooOrders||''}" oninput="upd('${b.id}','deliverooOrders',this.value)" ${disabled}/></div><div class="fld"><label>Deliveroo sale (AED)</label><input type="number" min="0" step="0.01" value="${d.deliveroo||''}" oninput="upd('${b.id}','deliveroo',this.value)" ${disabled}/></div></div>`:''}
   <div id="entry-pay-status">${!payOk?`<div class="warn-box">⚠ Payment total (${fmtN(payT)}) differs from gross by AED ${fmtN(diff)}</div>`:d.gross>0?`<div class="ok-box">✓ Payments reconciled</div>`:''}</div>
   <div class="section-lbl">Discounts, takeaway, dine-in, online &amp; transactions</div>
   <div class="grid-2"><div class="fld"><label>Discount (AED)</label><input type="number" min="0" step="0.01" value="${d.discounts||''}" oninput="upd('${b.id}','discounts',this.value)" ${disabled}/></div><div class="fld"><label>Total transactions</label><input type="number" min="0" step="1" value="${d.transactions||''}" oninput="upd('${b.id}','transactions',this.value)" ${disabled}/></div></div>
@@ -418,7 +422,7 @@ function aggregate(days){
   branches().forEach(b=>out[b.id]={...blankEntry(),days:0});
   days.forEach(dt=>branches().forEach(b=>{
     const e=db.daily[dt]?.[b.id];
-    if(e){['gross','food','bev','retail','costOfSales','cash','visa','master','bank','talabat','deliveroo','discounts','takeawayCustomers','takeawaySales','covers','dineInSales','thirdPartyCustomers','thirdPartySales','transactions'].forEach(k=>out[b.id][k]+=(e[k]||0));if(e.gross>0)out[b.id].days++;}
+    if(e){['gross','food','bev','retail','costOfSales','cash','visa','master','bank','talabat','deliveroo','talabatOrders','deliverooOrders','discounts','takeawayCustomers','takeawaySales','covers','dineInSales','thirdPartyCustomers','thirdPartySales','transactions'].forEach(k=>out[b.id][k]+=(e[k]||0));if(e.gross>0)out[b.id].days++;}
   }));
   return out;
 }
@@ -565,6 +569,51 @@ function renderBudget(){
   const branchRows=db.branches.map(b=>`<tr><td><span class="outlet-name"><span class="bdot" style="background:${b.color}"></span>${b.name}</span></td><td>${b.active?'Active':'Inactive'}</td><td><button class="btn" style="padding:5px 10px" onclick="toggleBranch('${b.id}')" ${disabled}>${b.active?'Deactivate':'Activate'}</button></td></tr>`).join('');
   const totalSalesBudget=branches().reduce((s,b)=>s+(bud[b.id]?.sales||0),0),totalCostBudget=branches().reduce((s,b)=>s+(bud[b.id]?.cost||0),0),t=totalsFromAgg(agg),actualCost=branches().reduce((s,b)=>s+(agg[b.id]?.costOfSales||0),0);
   el.innerHTML=`<div class="inline-filters">${monthPicker('budget')}${isEditor()?`<div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearBudgetMonth()">Clear monthly budget</button></div>`:''}</div><div class="metrics"><div class="metric blue"><div class="ml">Sales budget</div><div class="mv">${fmtN(totalSalesBudget)}</div></div><div class="metric"><div class="ml">Actual sales</div><div class="mv">${fmtN(t.gross)}</div><div class="ms">${days.length} recorded days</div></div><div class="metric ${t.gross-totalSalesBudget>=0?'green':'red'}"><div class="ml">Sales variance</div><div class="mv">${fmtN(t.gross-totalSalesBudget)}</div><div class="ms">${pct(t.gross-totalSalesBudget,totalSalesBudget)}</div></div><div class="metric amber"><div class="ml">Cost budget</div><div class="mv">${fmtN(totalCostBudget)}</div></div><div class="metric ${actualCost-totalCostBudget<=0?'green':'red'}"><div class="ml">Cost variance</div><div class="mv">${fmtN(actualCost-totalCostBudget)}</div><div class="ms">${pct(actualCost-totalCostBudget,totalCostBudget)}</div></div></div><div class="chart-grid">${renderRunRateForecast(k,totalSalesBudget,totalCostBudget,t.gross,actualCost)}</div>${renderBudgetCharts(bud,agg,totalSalesBudget,totalCostBudget,t.gross,actualCost)}<div class="card"><div class="card-header"><div><div class="card-title">Branchwise budget vs actual</div><div class="card-sub">Actuals come from Daily Entry for ${new Date(k+'-01T12:00:00').toLocaleDateString('en-AE',{month:'long',year:'numeric'})}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Branch</th><th>Sales budget</th><th>Actual sales</th><th>Sales var</th><th>Sales var %</th><th>Cost budget</th><th>Actual cost</th><th>Cost var</th><th>Cost var %</th></tr></thead><tbody>${rows}</tbody></table></div><div class="small-note">Actual cost uses the Cost of Sales / COGS field entered in Daily Entry.</div></div>${isEditor()?`<div class="card"><div class="card-header"><div><div class="card-title">Branch settings</div><div class="card-sub">Add future branches here. Inactive branches remain in stored history but are hidden from new reports.</div></div></div><div class="grid-2"><div class="fld"><label>New branch name</label><input id="newBranchName" placeholder="e.g. New Branch"></div><div class="fld"><label>&nbsp;</label><button class="btn primary" onclick="addBranch()">Add branch</button></div></div><div class="tbl-wrap" style="margin-top:16px"><table><thead><tr><th>Branch</th><th>Status</th><th>Action</th></tr></thead><tbody>${branchRows}</tbody></table></div></div>`:''}`;
+}
+
+function breakevenKey(){return selectedMonth}
+function getBreakeven(k=breakevenKey()){if(!db.breakeven)db.breakeven={};if(!db.breakeven[k])db.breakeven[k]={orders:0,sales:0};return db.breakeven[k]}
+function updateBreakevenValue(field,val){
+  if(isViewer())return;
+  const k=breakevenKey();
+  if(!db.breakeven)db.breakeven={};
+  if(!db.breakeven[k])db.breakeven[k]={orders:0,sales:0};
+  db.breakeven[k][field]=parseFloat(val)||0;
+  saveDB();
+  renderBreakeven();
+}
+function renderBreakeven(){
+  const el=document.getElementById('view-breakeven');
+  const b=branchById(DELIVERY_BRANCH_ID);
+  const branchExists=db.branches.some(x=>x.id===DELIVERY_BRANCH_ID);
+  if(!branchExists){el.innerHTML='<div class="empty">ARC Al Nahyan branch not found.</div>';return}
+  const k=breakevenKey(),be=getBreakeven(k);
+  const days=Object.keys(db.daily).filter(d=>d.startsWith(k)).sort();
+  let actualOrders=0,actualSales=0;
+  days.forEach(d=>{const e=db.daily[d]?.[DELIVERY_BRANCH_ID];if(e){actualOrders+=(e.talabatOrders||0)+(e.deliverooOrders||0);actualSales+=(e.talabat||0)+(e.deliveroo||0);}});
+  const ordersVar=actualOrders-be.orders,salesVar=actualSales-be.sales;
+  const ordersPct=be.orders?Math.min(actualOrders/be.orders*100,160):0,salesPct=be.sales?Math.min(actualSales/be.sales*100,160):0;
+  const editableOrders=isEditor()?`<input type="number" min="0" step="1" value="${be.orders||''}" onchange="updateBreakevenValue('orders',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px">`:fmtN(be.orders);
+  const editableSales=isEditor()?`<input type="number" min="0" step="0.01" value="${be.sales||''}" onchange="updateBreakevenValue('sales',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px">`:fmtN(be.sales);
+  el.innerHTML=`<div class="inline-filters">${monthPicker('breakeven')}</div>
+  <div class="metrics">
+    <div class="metric"><div class="ml">Actual orders</div><div class="mv">${fmtN(actualOrders)}</div><div class="ms">Talabat + Deliveroo, ${days.length} recorded days</div></div>
+    <div class="metric ${ordersVar>=0?'green':'red'}"><div class="ml">Orders variance</div><div class="mv">${fmtN(ordersVar)}</div><div class="ms">${be.orders?pct(ordersVar,be.orders):'—'}</div></div>
+    <div class="metric blue"><div class="ml">Actual sales</div><div class="mv">${fmtN(actualSales)}</div><div class="ms">AED, Talabat + Deliveroo</div></div>
+    <div class="metric ${salesVar>=0?'green':'red'}"><div class="ml">Sales variance</div><div class="mv">${fmtN(salesVar)}</div><div class="ms">${be.sales?pct(salesVar,be.sales):'—'}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div><div class="card-title">ARC Al Nahyan — Delivery break-even</div><div class="card-sub">Break-even targets vs actual Talabat + Deliveroo performance for ${new Date(k+'-01T12:00:00').toLocaleDateString('en-AE',{month:'long',year:'numeric'})}</div></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th></th><th>Break even target</th><th>Actual</th><th>Variance</th><th>Variance %</th></tr></thead><tbody>
+      <tr><td class="outlet-name"><span class="bdot" style="background:${b.color}"></span>Orders</td><td>${editableOrders}</td><td>${fmtN(actualOrders)}</td><td class="${ordersVar>=0?'pos':'neg'}">${fmtN(ordersVar)}</td><td>${be.orders?pct(ordersVar,be.orders):'—'}</td></tr>
+      <tr><td class="outlet-name"><span class="bdot" style="background:${b.color}"></span>Sales (AED)</td><td>${editableSales}</td><td>${fmtN(actualSales)}</td><td class="${salesVar>=0?'pos':'neg'}">${fmtN(salesVar)}</td><td>${be.sales?pct(salesVar,be.sales):'—'}</td></tr>
+    </tbody></table></div>
+    <div class="small-note">Break even orders and sales are set per month${isEditor()?' — click a value to edit it':''}. Actuals are pulled automatically from the Talabat and Deliveroo fields recorded in Daily Entry for ARC Al Nahyan.</div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card"><div class="chart-title">Orders: break even vs actual</div><div class="budget-bars"><div class="budget-bar-row"><div>Orders</div><div class="progress-track"><div class="progress-fill" style="width:${ordersPct}%;background:${actualOrders>=be.orders?'var(--green)':'var(--blue)'}"></div></div><div class="mono">${be.orders?ratio(actualOrders,be.orders):'—'}</div></div></div></div>
+    <div class="chart-card"><div class="chart-title">Sales: break even vs actual</div><div class="budget-bars"><div class="budget-bar-row"><div>Sales</div><div class="progress-track"><div class="progress-fill" style="width:${salesPct}%;background:${actualSales>=be.sales?'var(--green)':'var(--blue)'}"></div></div><div class="mono">${be.sales?ratio(actualSales,be.sales):'—'}</div></div></div></div>
+  </div>`;
 }
 
 function branchDailyRows(dayData,t){
