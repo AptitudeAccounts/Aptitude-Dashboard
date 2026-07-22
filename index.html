@@ -39,10 +39,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* Print / PDF export */
 .print-only{display:none}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
 @media print{
   @page{size:A4;margin:12mm}
   :root{--bg:#fff;--surface:#fff;--shadow:none}
-  body{background:#fff;color:#111;font-size:11px}
+  body{background:#fff;color:#111;font-size:11px;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
   .app{max-width:none;padding:0}
   .top-tools,.nav,.btabs,.btn-row,.del-btn,button,label.btn,.danger-box input[type=file]{display:none!important}
   .header{border-bottom:2px solid #111;margin-bottom:14px;padding-bottom:10px}
@@ -88,7 +90,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 @media print{
   body.print-daily-summary .app, body.print-daily-summary .toast-wrap{display:none!important}
   body.print-daily-summary #dailyPdfReport{display:block!important}
-  body.print-daily-summary{background:#fff!important}
+  body.print-daily-summary{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+  body.print-daily-summary *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
   @page{size:A4;margin:7mm}
   #dailyPdfReport{display:block!important}
   .report-page{break-inside:avoid;page-break-inside:avoid}
@@ -120,6 +123,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <button class="nav-btn" onclick="showView('history')" id="nb-history">History</button>
     <button class="nav-btn" onclick="showView('budget')" id="nb-budget">Branchwise budgeting</button>
     <button class="nav-btn" onclick="showView('breakeven')" id="nb-breakeven">ARC Al Nahyan Delivery</button>
+    <button class="nav-btn" onclick="showView('events')" id="nb-events">Events</button>
   </div>
 
   <div class="print-only" id="printHeader" style="margin-bottom:14px">
@@ -135,6 +139,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <div id="view-history" style="display:none"></div>
   <div id="view-budget" style="display:none"></div>
   <div id="view-breakeven" style="display:none"></div>
+  <div id="view-events" style="display:none"></div>
 </div>
 <div id="dailyPdfReport"></div>
 <div class="login-panel" id="loginPanel">
@@ -177,6 +182,8 @@ const AUTH_KEY='aptslice_admin_session_v1';
 const blankEntry=()=>({gross:0,food:0,bev:0,retail:0,costOfSales:0,cash:0,visa:0,master:0,bank:0,talabat:0,deliveroo:0,talabatOrders:0,deliverooOrders:0,discounts:0,takeawayCustomers:0,takeawaySales:0,covers:0,dineInSales:0,thirdPartyCustomers:0,thirdPartySales:0,transactions:0,saved:false});
 let db=loadDB();
 let activeB=0,curView='summary',entryDate=today(),selectedDay=today(),selectedMonth=today().substring(0,7),selectedYear=new Date().getFullYear(),role='viewer';
+let mtdMode='month',mtdRangeFrom=today().substring(0,8)+'01',mtdRangeTo=today();
+let ytdMode='year',ytdRangeFrom=today().substring(0,4)+'-01-01',ytdRangeTo=today();
 let session={};
 let auth=loadAuth();
 let cloudReady=false;
@@ -330,8 +337,8 @@ function initSessionFromDate(){
 }
 function setEntryDate(v){entryDate=v||today();initSessionFromDate();renderEntry()}
 
-function showView(v){curView=v;['entry','summary','mtd','ytd','history','budget','breakeven'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
-function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else renderEntry()}
+function showView(v){curView=v;['entry','summary','mtd','ytd','history','budget','breakeven','events'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
+function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else renderEntry()}
 function renderAll(){updateModeUI();renderCurrent()}
 function switchB(i){activeB=i;renderEntry()}
 function upd(bid,f,v){
@@ -433,6 +440,36 @@ function reportFilters(type){
   if(type==='month')return `<div class="inline-filters">${monthPicker('report')}</div>`;
   return `<div class="inline-filters"><div class="fld"><label>Report year</label><select onchange="selectedYear=parseInt(this.value);renderCurrent()">${years.map(y=>`<option value="${y}" ${y===selectedYear?'selected':''}>${y}</option>`).join('')}</select></div></div>`;
 }
+function setMtdMode(m){mtdMode=m;renderCurrent()}
+function setMtdRange(which,v){if(which==='from')mtdRangeFrom=v||mtdRangeFrom;else mtdRangeTo=v||mtdRangeTo;renderCurrent()}
+function mtdDays(){
+  if(mtdMode==='range')return Object.keys(db.daily).filter(d=>d>=mtdRangeFrom&&d<=mtdRangeTo).sort();
+  const mp=selectedMonth||today().substring(0,7);
+  return Object.keys(db.daily).filter(d=>d.startsWith(mp)).sort();
+}
+function mtdLabel(){return mtdMode==='range'?`${dateLbl(mtdRangeFrom)} to ${dateLbl(mtdRangeTo)}`:monthName(selectedMonth)+' '+(selectedMonth||'').split('-')[0]}
+function mtdFilters(){
+  const modeBtns=`<div class="btabs"><button class="btab ${mtdMode==='month'?'active':''}" onclick="setMtdMode('month')">Full month</button><button class="btab ${mtdMode==='range'?'active':''}" onclick="setMtdMode('range')">Custom dates</button></div>`;
+  const picker=mtdMode==='range'
+    ?`<div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${mtdRangeFrom}" onchange="setMtdRange('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${mtdRangeTo}" onchange="setMtdRange('to',this.value)"></div></div>`
+    :`<div class="inline-filters">${monthPicker('report')}</div>`;
+  return modeBtns+picker;
+}
+function setYtdMode(m){ytdMode=m;renderCurrent()}
+function setYtdRange(which,v){if(which==='from')ytdRangeFrom=v||ytdRangeFrom;else ytdRangeTo=v||ytdRangeTo;renderCurrent()}
+function ytdDays(){
+  if(ytdMode==='range')return Object.keys(db.daily).filter(d=>d>=ytdRangeFrom&&d<=ytdRangeTo).sort();
+  const yp=String(selectedYear),limit=(selectedYear===new Date().getFullYear()?today():yp+'-12-31');
+  return Object.keys(db.daily).filter(d=>d.startsWith(yp)&&d<=limit).sort();
+}
+function ytdLabel(){return ytdMode==='range'?`${dateLbl(ytdRangeFrom)} to ${dateLbl(ytdRangeTo)}`:`1 Jan ${selectedYear} to ${dateLbl(selectedYear===new Date().getFullYear()?today():selectedYear+'-12-31')}`}
+function ytdFilters(){
+  const modeBtns=`<div class="btabs"><button class="btab ${ytdMode==='year'?'active':''}" onclick="setYtdMode('year')">Full year</button><button class="btab ${ytdMode==='range'?'active':''}" onclick="setYtdMode('range')">Custom dates</button></div>`;
+  const picker=ytdMode==='range'
+    ?`<div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${ytdRangeFrom}" onchange="setYtdRange('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${ytdRangeTo}" onchange="setYtdRange('to',this.value)"></div></div>`
+    :reportFilters('year');
+  return modeBtns+picker;
+}
 function getYears(){const ys=new Set([new Date().getFullYear()]);Object.keys(db.daily).forEach(d=>ys.add(parseInt(d.substring(0,4))));Object.keys(db.budgets||{}).forEach(k=>ys.add(parseInt(k.substring(0,4))));return [...ys].filter(Boolean).sort((a,b)=>b-a)}
 function ratio(n,d){return d?((n/d)*100).toFixed(1)+'%':'—'}
 function renderMetricBlock(t,prefix,sub){return `<div class="metrics"><div class="metric"><div class="ml">${prefix} gross (incl. VAT)</div><div class="mv">${fmtN(t.gross)}</div><div class="ms">${sub||'AED'}</div></div><div class="metric blue"><div class="ml">${prefix} ex. VAT</div><div class="mv">${fmtN(t.exv)}</div></div><div class="metric amber"><div class="ml">${prefix} VAT</div><div class="mv">${fmtN(t.vat)}</div></div><div class="metric"><div class="ml">Cost of sales</div><div class="mv">${fmtN(t.costOfSales)}</div><div class="ms">COGS</div></div><div class="metric green"><div class="ml">Gross profit</div><div class="mv">${fmtN(t.grossProfit)}</div><div class="ms">Ex. VAT less COGS</div></div><div class="metric"><div class="ml">Covers / Transactions</div><div class="mv">${t.covers}</div><div class="ms">${t.transactions} transactions</div></div></div>`}
@@ -491,8 +528,8 @@ function renderSummary(){
   const lastWeekDate=shiftDate(d,-7),lastWeekDays=db.daily[lastWeekDate]?[lastWeekDate]:[],lastAgg=aggregate(lastWeekDays),lastT=totalsFromAgg(lastAgg);
   el.innerHTML=reportFilters('day')+renderMetricBlock(t,'Daily',lbl)+renderReportCharts(agg,t,days,'Daily')+renderRatioAnalysis(t,'Daily ratio analysis')+renderBranchTable(agg,t,'Branch breakdown',lbl,{agg:lastAgg,t:lastT})+renderBars(agg,t,'Sales contribution');
 }
-function renderMTD(){const el=document.getElementById('view-mtd'),mp=selectedMonth||today().substring(0,7),days=Object.keys(db.daily).filter(d=>d.startsWith(mp)).sort();if(!days.length){el.innerHTML=reportFilters('month')+'<div class="empty">No data for this month yet.</div>';return}const agg=aggregate(days),t=totalsFromAgg(agg),mn=new Date(mp+'-01T12:00:00').toLocaleDateString('en-AE',{month:'long'});el.innerHTML=reportFilters('month')+renderMetricBlock(t,'MTD',days.length+' days recorded')+renderReportCharts(agg,t,days,'MTD')+renderRatioAnalysis(t,'MTD ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,'MTD financial trend')}</div>`+renderBranchTable(agg,t,'MTD by branch',mn)+renderBars(agg,t,'MTD contribution')}
-function renderYTD(){const el=document.getElementById('view-ytd'),yp=String(selectedYear),limit=(selectedYear===new Date().getFullYear()?today():yp+'-12-31'),days=Object.keys(db.daily).filter(d=>d.startsWith(yp)&&d<=limit).sort();if(!days.length){el.innerHTML=reportFilters('year')+`<div class="empty">No data for ${selectedYear} yet.</div>`;return}const agg=aggregate(days),t=totalsFromAgg(agg);el.innerHTML=reportFilters('year')+renderMetricBlock(t,'YTD',`${days.length} days recorded in ${selectedYear}`)+renderReportCharts(agg,t,days,'YTD')+renderRatioAnalysis(t,'YTD ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,'YTD financial trend')}</div>`+renderBranchTable(agg,t,'YTD by branch',`1 Jan ${selectedYear} to ${dateLbl(limit)}`)+renderBars(agg,t,'YTD contribution')}
+function renderMTD(){const el=document.getElementById('view-mtd'),days=mtdDays();if(!days.length){el.innerHTML=mtdFilters()+'<div class="empty">No data for this selection yet.</div>';return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=mtdLabel(),ttl=mtdMode==='range'?'Selected range':'MTD';el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
+function renderYTD(){const el=document.getElementById('view-ytd'),days=ytdDays();if(!days.length){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
 function renderHistory(){const el=document.getElementById('view-history'),days=Object.keys(db.daily).sort().reverse().slice(0,90);if(!days.length){el.innerHTML='<div class="empty">No history yet.</div>';return}const rows=days.map(d=>{const total=branches().reduce((s,b)=>s+(db.daily[d]?.[b.id]?.gross||0),0),bcount=branches().filter(b=>db.daily[d]?.[b.id]?.gross>0).length;return `<div class="hist-row"><div><div class="hist-date">${dateLbl(d)}</div><div class="hist-sub">${bcount} branch${bcount!==1?'es':''}</div></div><div class="hist-amt"><div class="main">${fmt(total)}</div><div class="sub">${fmtN(total/1.05)} ex. VAT</div></div>${isEditor()?`<button class="del-btn" onclick="delDay('${d}')" title="Delete">✕</button>`:''}</div>`}).join('');el.innerHTML=`<div class="card"><div class="card-header"><div class="card-title">History</div><div class="card-sub">Last 90 saved days</div></div>${rows}</div>`}
 
 function budgetKey(){return selectedMonth}
@@ -616,6 +653,80 @@ function renderBreakeven(){
   </div>`;
 }
 
+function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,cash:0,visa:0,master:0,bank:0,commission:0,notes:''}}
+let eventForm=blankEvent();
+let editingEventId=null;
+let eventsFilterFrom='',eventsFilterTo='';
+function newEventForm(){if(isViewer())return;editingEventId=null;eventForm=blankEvent();renderEvents()}
+function editEvent(id){
+  if(isViewer())return;
+  const ev=(db.events||[]).find(e=>e.id===id);
+  if(!ev)return;
+  editingEventId=id;
+  eventForm={...blankEvent(),...ev};
+  renderEvents();
+}
+function updEventField(f,v){
+  if(isViewer())return;
+  if(f==='name'||f==='date'||f==='organizer'||f==='notes')eventForm[f]=v;
+  else eventForm[f]=parseFloat(v)||0;
+  renderEvents();
+}
+function saveEvent(){
+  if(isViewer())return toast('Editing is available after admin login');
+  if(!eventForm.name||!eventForm.name.trim())return toast('Enter an event name');
+  if(!db.events)db.events=[];
+  if(editingEventId){
+    const idx=db.events.findIndex(e=>e.id===editingEventId);
+    if(idx>-1)db.events[idx]={...eventForm,id:editingEventId,updatedAt:new Date().toISOString()};
+  }else{
+    const id='evt_'+Date.now();
+    db.events.push({...eventForm,id,updatedAt:new Date().toISOString()});
+  }
+  saveDB();
+  editingEventId=null;
+  eventForm=blankEvent();
+  toast('Event saved ✓');
+  renderEvents();
+}
+function deleteEvent(id){
+  if(isViewer())return toast('Editing is available after admin login');
+  if(!confirm('Delete this event record?'))return;
+  db.events=(db.events||[]).filter(e=>e.id!==id);
+  if(editingEventId===id){editingEventId=null;eventForm=blankEvent();}
+  saveDB();
+  toast('Event deleted');
+  renderEvents();
+}
+function setEventsFilter(which,v){if(which==='from')eventsFilterFrom=v;else eventsFilterTo=v;renderEvents()}
+function clearEventsFilter(){eventsFilterFrom='';eventsFilterTo='';renderEvents()}
+function renderEvents(){
+  const el=document.getElementById('view-events'),disabled=isViewer()?'disabled':'';
+  const all=(db.events||[]).slice().sort((a,z)=>(z.date||'').localeCompare(a.date||''));
+  const filtered=all.filter(e=>(!eventsFilterFrom||e.date>=eventsFilterFrom)&&(!eventsFilterTo||e.date<=eventsFilterTo));
+  const exV=(eventForm.gross||0)/1.05,vatA=(eventForm.gross||0)-exV;
+  const payT=(eventForm.cash||0)+(eventForm.visa||0)+(eventForm.master||0)+(eventForm.bank||0);
+  const diff=Math.abs((eventForm.gross||0)-payT),payOk=!eventForm.gross||diff<0.05;
+  const netAfterCommission=(eventForm.gross||0)-(eventForm.commission||0);
+  const formHtml=isEditor()?`<div class="card">
+    <div class="card-header"><div><div class="card-title">${editingEventId?'Edit event':'Add new event'}</div><div class="card-sub">${editingEventId?'Updating a saved event record':'Enter details for a new event — supports 50+ events'}</div></div>${editingEventId?`<button class="btn" style="flex:0;padding:6px 12px" onclick="newEventForm()">+ New event</button>`:''}</div>
+    <div class="grid-2"><div class="fld"><label>Event name</label><input value="${eventForm.name||''}" oninput="updEventField('name',this.value)" placeholder="e.g. Louvre Night Market"></div><div class="fld"><label>Event date</label><input type="date" value="${eventForm.date||today()}" onchange="updEventField('date',this.value)"></div></div>
+    <div class="grid-2" style="margin-top:10px"><div class="fld"><label>Organizer</label><input value="${eventForm.organizer||''}" oninput="updEventField('organizer',this.value)" placeholder="Organizer name"></div><div class="fld"><label>Gross sales incl. 5% VAT (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.gross||''}" oninput="updEventField('gross',this.value)"></div></div>
+    <div class="calc-strip"><div class="ci"><div class="cl">Ex. VAT</div><div class="cv">${fmtN(exV)}</div></div><div class="ci"><div class="cl">VAT 5%</div><div class="cv blue">${fmtN(vatA)}</div></div><div class="ci"><div class="cl">Commission</div><div class="cv" style="color:var(--amber)">${fmtN(eventForm.commission||0)}</div></div><div class="ci"><div class="cl">Net after commission</div><div class="cv green">${fmtN(netAfterCommission)}</div></div></div>
+    <div class="section-lbl">Payment breakdown</div><div class="grid-4"><div class="fld"><label>Qlub (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.cash||''}" oninput="updEventField('cash',this.value)"></div><div class="fld"><label>Visa (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.visa||''}" oninput="updEventField('visa',this.value)"></div><div class="fld"><label>Mastercard (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.master||''}" oninput="updEventField('master',this.value)"></div><div class="fld"><label>Bank transfer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.bank||''}" oninput="updEventField('bank',this.value)"></div></div>
+    ${eventForm.gross?(!payOk?`<div class="warn-box">⚠ Payment total (${fmtN(payT)}) differs from gross by AED ${fmtN(diff)}</div>`:`<div class="ok-box">✓ Payments reconciled</div>`):''}
+    <div class="section-lbl">Commission &amp; notes</div><div class="grid-2"><div class="fld"><label>Commission paid to organizer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.commission||''}" oninput="updEventField('commission',this.value)"></div><div class="fld"><label>Notes</label><input value="${eventForm.notes||''}" oninput="updEventField('notes',this.value)" placeholder="Optional"></div></div>
+    <div class="btn-row"><button class="btn" onclick="newEventForm()">Clear</button><button class="btn primary" onclick="saveEvent()">${editingEventId?'Update event':'Save event'}</button></div>
+  </div>`:'';
+  const totals=filtered.reduce((s,e)=>{s.gross+=e.gross||0;s.commission+=e.commission||0;return s},{gross:0,commission:0});
+  totals.net=totals.gross-totals.commission;
+  const rows=filtered.map(e=>{const net=(e.gross||0)-(e.commission||0);return `<tr><td class="name">${e.name}</td><td>${dateLbl(e.date)}</td><td>${e.organizer||'—'}</td><td>${fmtN(e.gross)}</td><td>${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}">${fmtN(net)}</td>${isEditor()?`<td><button class="btn" style="padding:4px 10px;flex:0;display:inline-block;width:auto" onclick="editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="deleteEvent('${e.id}')" title="Delete">✕</button></td>`:''}</tr>`}).join('');
+  el.innerHTML=formHtml+`
+  <div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${eventsFilterFrom}" onchange="setEventsFilter('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${eventsFilterTo}" onchange="setEventsFilter('to',this.value)"></div><div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearEventsFilter()">Clear filter</button></div></div>
+  <div class="metrics"><div class="metric"><div class="ml">Events shown</div><div class="mv">${filtered.length}</div><div class="ms">of ${all.length} total on record</div></div><div class="metric blue"><div class="ml">Total event sales</div><div class="mv">${fmtN(totals.gross)}</div></div><div class="metric amber"><div class="ml">Total commission paid</div><div class="mv">${fmtN(totals.commission)}</div></div><div class="metric green"><div class="ml">Net after commission</div><div class="mv">${fmtN(totals.net)}</div></div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">Events record</div><div class="card-sub">${filtered.length} event${filtered.length!==1?'s':''}${eventsFilterFrom||eventsFilterTo?' in selected date range':''}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Date</th><th>Organizer</th><th>Gross sales</th><th>Commission</th><th>Net</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${isEditor()?7:6}" style="text-align:center;color:var(--hint)">No events recorded${eventsFilterFrom||eventsFilterTo?' in this range':''}.</td></tr>`}</tbody>${filtered.length?`<tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td>${fmtN(totals.gross)}</td><td>${fmtN(totals.commission)}</td><td>${fmtN(totals.net)}</td>${isEditor()?'<td></td>':''}</tr></tfoot>`:''}</table></div></div>`;
+}
+
 function branchDailyRows(dayData,t){
   return branches().map(b=>{
     const e=ensureEntryShape(dayData[b.id]||{}),g=e.gross||0,exv=g/1.05,gp=exv-(e.costOfSales||0),share=t.gross?g/t.gross*100:0;
@@ -655,10 +766,36 @@ function buildDailySummaryReport(d){
   <div class="report-page"><div class="report-head"><div><div class="report-title">Branchwise Channel Report</div><div style="font-size:12px;color:#E0ECFF">Dine-in, takeaway and online sales breakdown</div></div><div class="report-meta"><div><b>Report date:</b> ${dateLbl(d)}</div><div><b>Currency:</b> AED</div></div></div><div class="report-section-title">Branchwise sales by channel</div><table class="report-table"><thead><tr><th rowspan="2">Branch</th><th rowspan="2">Total sale</th><th colspan="2">Dine-in</th><th colspan="2">Takeaway</th><th colspan="2">Online</th></tr><tr><th>Customer</th><th>Sale</th><th>Customer</th><th>Sale</th><th>Customer</th><th>Sale</th></tr></thead><tbody>${branchChannelRows(dayData)}</tbody><tfoot>${branchChannelTotals(t)}</tfoot></table><div class="report-grid-2"><div class="report-card"><div class="report-section-title">Channel sales mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#2563EB 0 ${t.gross?t.dineInSales/t.gross*100:0}%, #16A34A ${t.gross?t.dineInSales/t.gross*100:0}% ${t.gross?(t.dineInSales+t.takeawaySales)/t.gross*100:0}%, #D97706 ${t.gross?(t.dineInSales+t.takeawaySales)/t.gross*100:0}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#2563EB"></i>Dine-in ${fmtN(t.dineInSales)}</span><span><i class="report-swatch" style="background:#16A34A"></i>Takeaway ${fmtN(t.takeawaySales)}</span><span><i class="report-swatch" style="background:#D97706"></i>Online ${fmtN(t.thirdPartySales)}</span></div></div></div><div class="report-card"><div class="report-section-title">Channel customers / orders</div><div class="report-ratios"><div class="report-ratio"><div class="label">Dine-in customers</div><div class="value">${t.covers}</div></div><div class="report-ratio"><div class="label">Takeaway orders</div><div class="value">${t.takeawayCustomers}</div></div><div class="report-ratio"><div class="label">Online orders</div><div class="value">${t.thirdPartyCustomers}</div></div><div class="report-ratio"><div class="label">Total transactions</div><div class="value">${t.transactions}</div></div></div></div></div><div class="report-foot"><span>Online means third-party sales.</span><span>Page 2 of 3</span></div></div>
   <div class="report-page"><div class="report-head"><div><div class="report-title">Current Day vs Last Week</div><div style="font-size:12px;color:#E0ECFF">Branchwise comparison against same day last week</div></div><div class="report-meta"><div><b>Current day:</b> ${dateLbl(d)}</div><div><b>Last week:</b> ${dateLbl(lastWeek)}</div></div></div><div class="report-kpis"><div class="report-kpi"><div class="label">Last week sale</div><div class="value">${fmtN(lastT.gross)}</div></div><div class="report-kpi"><div class="label">Current sale</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi ${weekVar>=0?'green':'red'}"><div class="label">Variance</div><div class="value">${fmtN(weekVar)}</div></div></div><div class="report-grid-2"><div class="report-card"><div class="report-section-title">Branchwise comparison table</div><table class="report-table"><thead><tr><th>Branch</th><th>Last week sale</th><th>Current sale</th><th>Variance</th><th>Variance %</th></tr></thead><tbody>${weekCompareRows(d,dayData,lastWeekData)}</tbody><tfoot><tr><td class="name">Total</td><td>${fmtN(lastT.gross)}</td><td>${fmtN(t.gross)}</td><td>${fmtN(weekVar)}</td><td>${lastT.gross?weekPct.toFixed(1)+'%':'—'}</td></tr></tfoot></table></div><div class="report-card"><div class="report-section-title">Visual comparison</div><div class="report-small-note" style="margin-bottom:8px"><span style="color:#93C5FD;font-weight:800">Blue line</span> = last week, <span style="color:#2563EB;font-weight:800">dark line</span> = current day.</div>${weekCompareChart(dayData,lastWeekData)}</div></div><div class="report-foot"><span>Comparison uses same branch/date records saved in Google Sheet.</span><span>Page 3 of 3</span></div></div>`;
 }
+function buildRangeReport(days,label,periodTitle){
+  const agg=aggregate(days),t=totalsFromAgg(agg);
+  const totalCash=t.cash,totalCard=t.card,totalBank=t.bank,totalTalabat=t.talabat,totalDeliveroo=t.deliveroo,payTotal=totalCash+totalCard+totalBank+totalTalabat+totalDeliveroo;
+  const bars=branches().slice().sort((a,z)=>(agg[z.id]?.gross||0)-(agg[a.id]?.gross||0)).map(b=>{const val=agg[b.id]?.gross||0,p=t.gross?val/t.gross*100:0;return `<div class="report-bar"><div>${b.name}</div><div class="report-track"><div class="report-fill" style="width:${p.toFixed(1)}%;background:${b.color}"></div></div><div>${fmtN(val)}</div></div>`;}).join('');
+  const food=t.food||0,bev=t.bev||0,retail=t.retail||0,revMixTotal=food+bev+retail;
+  const revFood=revMixTotal?food/revMixTotal*100:75,revBev=revMixTotal?bev/revMixTotal*100:20,revRetail=revMixTotal?retail/revMixTotal*100:5;
+  const payCash=payTotal?totalCash/payTotal*100:0,payCard=payTotal?totalCard/payTotal*100:0,payBank=payTotal?totalBank/payTotal*100:0,payTalabat=payTotal?totalTalabat/payTotal*100:0,payDeliveroo=payTotal?totalDeliveroo/payTotal*100:0;
+  const topBranches=branches().slice().sort((a,z)=>(agg[z.id]?.gross||0)-(agg[a.id]?.gross||0)).slice(0,6);
+  const maxBranch=Math.max(1,...topBranches.map(b=>agg[b.id]?.gross||0));
+  const branchMini=topBranches.map(b=>{const val=agg[b.id]?.gross||0,h=Math.max(4,val/maxBranch*120);return `<div style="flex:1"><div class="report-mini-bar" style="height:${h}px;background:${b.color}"></div><div class="report-mini-bar-label">${b.name.split(' ')[0]}</div></div>`}).join('');
+  const gpPct=t.exv?t.grossProfit/t.exv*100:0,cogsPct=t.gross?t.costOfSales/t.gross*100:0,discPct=t.gross?t.discounts/t.gross*100:0;
+  const branchFinRows=branches().map(b=>{const m=agg[b.id]||blankEntry(),share=t.gross>0?(m.gross/t.gross*100).toFixed(1):'0.0',exv=m.gross/1.05,gp=exv-(m.costOfSales||0);return `<tr><td class="name">${b.name}</td><td>${fmtN(m.gross)}</td><td>${fmtN(exv)}</td><td>${fmtN(m.costOfSales||0)}</td><td>${fmtN(gp)}</td><td>${ratio(gp,exv)}</td><td>${m.covers}</td><td>${share}%</td></tr>`}).join('');
+  return `<div class="report-page">
+    <div class="report-head"><div><div class="report-title">${periodTitle} <span class="report-badge">All Branches</span></div><div style="font-size:12px;color:#E0ECFF">Aptitude &amp; Slice45 management report</div></div><div class="report-meta"><div><b>Period:</b> ${label}</div><div><b>Days recorded:</b> ${days.length}</div><div><b>Generated:</b> ${todayLbl()}</div><div><b>Currency:</b> AED</div></div></div>
+    <div class="report-kpis"><div class="report-kpi"><div class="label">Gross incl. VAT</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi"><div class="label">Sales ex. VAT</div><div class="value">${fmtN(t.exv)}</div></div><div class="report-kpi amber"><div class="label">VAT</div><div class="value">${fmtN(t.vat)}</div></div><div class="report-kpi red"><div class="label">COGS</div><div class="value">${fmtN(t.costOfSales)}</div></div><div class="report-kpi green"><div class="label">Gross profit</div><div class="value">${fmtN(t.grossProfit)}</div></div><div class="report-kpi"><div class="label">Customers / Txn</div><div class="value">${t.covers} / ${t.transactions}</div></div></div>
+    <div class="report-grid-2"><div class="report-card"><div class="report-section-title">Sales contribution by branch</div><div class="report-bars">${bars}</div></div><div class="report-card"><div class="report-section-title">Ratio analysis</div><div class="report-ratios"><div class="report-ratio"><div class="label">Gross margin</div><div class="value">${ratio(t.grossProfit,t.exv)}</div></div><div class="report-ratio"><div class="label">COGS / Gross</div><div class="value">${ratio(t.costOfSales,t.gross)}</div></div><div class="report-ratio"><div class="label">Discount / Gross</div><div class="value">${ratio(t.discounts,t.gross)}</div></div><div class="report-ratio"><div class="label">Avg per day</div><div class="value">${days.length?fmtN(t.gross/days.length):'—'}</div></div></div></div></div>
+    <div class="report-section-title">Management visuals</div><div class="report-visual-grid"><div class="report-mini-card"><div class="report-mini-title">Revenue mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#2563EB 0 ${revFood}%, #16A34A ${revFood}% ${revFood+revBev}%, #D97706 ${revFood+revBev}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#2563EB"></i>Food ${revFood.toFixed(1)}%</span><span><i class="report-swatch" style="background:#16A34A"></i>Beverages ${revBev.toFixed(1)}%</span><span><i class="report-swatch" style="background:#D97706"></i>Retail ${revRetail.toFixed(1)}%</span></div></div><div class="report-small-note">Auto-calculated from gross sales.</div></div><div class="report-mini-card"><div class="report-mini-title">Payment mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#16A34A 0 ${payCash}%, #2563EB ${payCash}% ${payCash+payCard}%, #0D9488 ${payCash+payCard}% ${payCash+payCard+payBank}%, #EA580C ${payCash+payCard+payBank}% ${payCash+payCard+payBank+payTalabat}%, #00CCBC ${payCash+payCard+payBank+payTalabat}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#16A34A"></i>Qlub ${payCash.toFixed(1)}%</span><span><i class="report-swatch" style="background:#2563EB"></i>Cards ${payCard.toFixed(1)}%</span><span><i class="report-swatch" style="background:#0D9488"></i>Bank ${payBank.toFixed(1)}%</span><span><i class="report-swatch" style="background:#EA580C"></i>Talabat ${payTalabat.toFixed(1)}%</span><span><i class="report-swatch" style="background:#00CCBC"></i>Deliveroo ${payDeliveroo.toFixed(1)}%</span></div></div><div class="report-small-note">Payment receipt split.</div></div><div class="report-mini-card"><div class="report-mini-title">Top branch sales</div><div class="report-mini-bars">${branchMini}</div></div><div class="report-mini-card"><div class="report-mini-title">Margin dashboard</div><div class="report-mini-row"><div class="report-mini-row-top"><span>Gross margin</span><b>${gpPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(gpPct,100)}%;background:#16A34A"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>COGS / gross</span><b>${cogsPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(cogsPct,100)}%;background:#D97706"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>Discount / gross</span><b>${discPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(discPct,100)}%;background:#DC2626"></div></div></div></div></div>
+    <div class="report-foot"><span>Prepared from Daily Entry records.</span><span>Page 1 of 2</span></div></div>
+  <div class="report-page"><div class="report-head"><div><div class="report-title">Branchwise Channel &amp; Financial Report</div><div style="font-size:12px;color:#E0ECFF">Dine-in, takeaway, online and financial breakdown by branch</div></div><div class="report-meta"><div><b>Period:</b> ${label}</div><div><b>Currency:</b> AED</div></div></div><div class="report-section-title">Branchwise sales by channel</div><table class="report-table"><thead><tr><th rowspan="2">Branch</th><th rowspan="2">Total sale</th><th colspan="2">Dine-in</th><th colspan="2">Takeaway</th><th colspan="2">Online</th></tr><tr><th>Customer</th><th>Sale</th><th>Customer</th><th>Sale</th><th>Customer</th><th>Sale</th></tr></thead><tbody>${branchChannelRows(agg)}</tbody><tfoot>${branchChannelTotals(t)}</tfoot></table><div class="report-section-title" style="margin-top:14px">Branchwise financial breakdown</div><table class="report-table"><thead><tr><th>Branch</th><th>Gross</th><th>Ex. VAT</th><th>COGS</th><th>Gross profit</th><th>GP %</th><th>Covers</th><th>Share</th></tr></thead><tbody>${branchFinRows}</tbody><tfoot><tr><td class="name">Total</td><td>${fmtN(t.gross)}</td><td>${fmtN(t.exv)}</td><td>${fmtN(t.costOfSales)}</td><td>${fmtN(t.grossProfit)}</td><td>${ratio(t.grossProfit,t.exv)}</td><td>${t.covers}</td><td>100%</td></tr></tfoot></table><div class="report-foot"><span>Prepared from Daily Entry records.</span><span>Page 2 of 2</span></div></div>`;
+}
 function exportPDF(){
-  const reportDate=(curView==='entry'?entryDate:(selectedDay||today()));
   const target=document.getElementById('dailyPdfReport');
-  target.innerHTML=buildDailySummaryReport(reportDate);
+  if(curView==='mtd'){
+    target.innerHTML=buildRangeReport(mtdDays(),mtdLabel(),mtdMode==='range'?'Custom Range Sales Report':'MTD Sales Report');
+  }else if(curView==='ytd'){
+    target.innerHTML=buildRangeReport(ytdDays(),ytdLabel(),ytdMode==='range'?'Custom Range Sales Report':'YTD Sales Report');
+  }else{
+    const reportDate=(curView==='entry'?entryDate:(selectedDay||today()));
+    target.innerHTML=buildDailySummaryReport(reportDate);
+  }
   document.body.classList.add('print-daily-summary');
   const cleanup=()=>document.body.classList.remove('print-daily-summary');
   window.onafterprint=cleanup;
