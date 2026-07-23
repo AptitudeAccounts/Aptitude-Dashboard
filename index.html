@@ -120,6 +120,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
     <button class="nav-btn active" onclick="showView('summary')" id="nb-summary">Today's summary</button>
     <button class="nav-btn" onclick="showView('mtd')" id="nb-mtd">MTD tracker</button>
     <button class="nav-btn" onclick="showView('ytd')" id="nb-ytd">YTD</button>
+    <button class="nav-btn" onclick="showView('analysis')" id="nb-analysis">Executive Analysis</button>
     <button class="nav-btn" onclick="showView('history')" id="nb-history">History</button>
     <button class="nav-btn" onclick="showView('budget')" id="nb-budget">Branchwise budgeting</button>
     <button class="nav-btn" onclick="showView('breakeven')" id="nb-breakeven">ARC Al Nahyan Delivery</button>
@@ -136,6 +137,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   <div id="view-summary"></div>
   <div id="view-mtd" style="display:none"></div>
   <div id="view-ytd" style="display:none"></div>
+  <div id="view-analysis" style="display:none"></div>
   <div id="view-history" style="display:none"></div>
   <div id="view-budget" style="display:none"></div>
   <div id="view-breakeven" style="display:none"></div>
@@ -337,8 +339,8 @@ function initSessionFromDate(){
 }
 function setEntryDate(v){entryDate=v||today();initSessionFromDate();renderEntry()}
 
-function showView(v){curView=v;['entry','summary','mtd','ytd','history','budget','breakeven','events'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
-function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else renderEntry()}
+function showView(v){curView=v;['entry','summary','mtd','ytd','analysis','history','budget','breakeven','events'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
+function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='analysis')renderAnalysis();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else renderEntry()}
 function renderAll(){updateModeUI();renderCurrent()}
 function switchB(i){activeB=i;renderEntry()}
 function upd(bid,f,v){
@@ -625,15 +627,139 @@ function getMtdCommentary(days){
   const momDays=priorComparablePeriod(days);
   const momLabel=mtdMode==='month'?monthKeyLabel(shiftMonthKey(selectedMonth,-1)):'the previous equivalent period';
   const yoyDays=mtdMode==='month'?yoyComparablePeriod(days):[];
-  return computePeriodCommentary(days,{budgetMonthKey:mtdMode==='month'?selectedMonth:null,compareDays:momDays,compareLabel:momLabel,yoyDays});
+  const items=computePeriodCommentary(days,{budgetMonthKey:mtdMode==='month'?selectedMonth:null,compareDays:momDays,compareLabel:momLabel,yoyDays});
+  if(mtdMode==='month'&&days.length){
+    const dayCount=parseInt(days[days.length-1].slice(8,10),10);
+    const precedingMonths=[];
+    for(let back=2;back<=4;back++){
+      const mk=shiftMonthKey(selectedMonth,-back);
+      const likeDays=Object.keys(db.daily).filter(d=>d.startsWith(mk)&&parseInt(d.slice(8,10),10)<=dayCount).sort();
+      if(likeDays.length)precedingMonths.push(totalsFromAgg(aggregate(likeDays)).gross);
+    }
+    if(precedingMonths.length){
+      const avgPreceding=precedingMonths.reduce((s,v)=>s+v,0)/precedingMonths.length;
+      const t=totalsFromAgg(aggregate(days));
+      if(avgPreceding>0){
+        const vsAvg=(t.gross-avgPreceding)/avgPreceding*100;
+        items.push({tag:vsAvg>=0?'pos':'warn',text:`Versus the average of the ${precedingMonths.length} preceding month${precedingMonths.length>1?'s':''} (like-for-like day count), this month is ${vsAvg>=0?'tracking above':'tracking below'} pace by ${Math.abs(vsAvg).toFixed(1)}%.`});
+      }
+    }
+  }
+  return items;
 }
 function renderMTD(){const el=document.getElementById('view-mtd'),days=mtdDays();if(!days.length){el.innerHTML=mtdFilters()+'<div class="empty">No data for this selection yet.</div>';return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=mtdLabel(),ttl=mtdMode==='range'?'Selected range':'MTD';const commentaryItems=getMtdCommentary(days);el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
+function buildTotalSalesYtdCommentary(days){
+  const items=[];
+  const agg=aggregate(days),t=totalsFromAgg(agg);
+  items.push({tag:'info',text:`Year-over-year comparison isn't available yet — showing total sales achieved instead. Total sales this year to date: ${fmt(t.gross)} (${fmtN(t.exv)} ex. VAT), gross margin ${ratio(t.grossProfit,t.exv)}.`});
+  const monthsInRange=[...new Set(days.map(d=>d.slice(0,7)))].sort();
+  if(monthsInRange.length>=2){
+    const monthlyInRange=monthsInRange.map(mk=>{const mDays=days.filter(d=>d.startsWith(mk));return {mk,label:monthKeyLabel(mk),t:totalsFromAgg(aggregate(mDays))}});
+    const completed=monthlyInRange.slice(0,-1);
+    if(completed.length>=2){
+      const first=completed[0],last=completed[completed.length-1];
+      if(first.t.gross>0){const growth=(last.t.gross-first.t.gross)/first.t.gross*100;items.push({tag:growth>=0?'pos':'neg',text:`Monthly sales have ${growth>=0?'grown':'declined'} ${Math.abs(growth).toFixed(1)}% from ${first.label} (${fmt(first.t.gross)}) to ${last.label} (${fmt(last.t.gross)}).`})}
+      const best=completed.slice().sort((a,z)=>z.t.gross-a.t.gross)[0];
+      items.push({tag:'info',text:`${best.label} has been the strongest month this year at ${fmt(best.t.gross)}.`});
+    }
+  }
+  const avgDaily=days.length?t.gross/days.length:0;
+  if(avgDaily>0)items.push({tag:'info',text:`Average daily sales this year stand at ${fmtN(avgDaily)} across ${days.length} recorded days.`});
+  return items;
+}
 function getYtdCommentary(days){
   const compareDays=yoyComparablePeriod(days);
-  const compareLabel=ytdMode==='year'?'the same period last year':'the previous equivalent period';
-  return computePeriodCommentary(days,{compareDays,compareLabel});
+  if(compareDays.length){
+    const p=totalsFromAgg(aggregate(compareDays));
+    if(p.gross>0){
+      const compareLabel=ytdMode==='year'?'the same period last year':'the previous equivalent period';
+      return computePeriodCommentary(days,{compareDays,compareLabel});
+    }
+  }
+  return buildTotalSalesYtdCommentary(days);
 }
 function renderYTD(){const el=document.getElementById('view-ytd'),days=ytdDays();if(!days.length){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';const commentaryItems=getYtdCommentary(days);el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
+
+/* ============ Executive Analysis (lifetime / month-over-month, since YoY history isn't available yet) ============ */
+function monthlyAggregates(){
+  const months=[...new Set(Object.keys(db.daily).map(d=>d.slice(0,7)))].sort();
+  return months.map(mk=>{
+    const days=Object.keys(db.daily).filter(d=>d.startsWith(mk)).sort();
+    const agg=aggregate(days),t=totalsFromAgg(agg);
+    return {monthKey:mk,label:monthKeyLabel(mk),days,agg,t};
+  });
+}
+function renderMonthlyTrendChart(monthly){
+  const max=Math.max(...monthly.map(m=>m.t.gross),0);
+  const bars=monthly.map(m=>`<div class="trend-bar" data-tip="${m.label}: ${fmt(m.t.gross)}" style="height:${max?(m.t.gross/max*100).toFixed(1):0}%;background:var(--blue)"></div>`).join('')||'<div class="empty">No monthly data yet</div>';
+  return `<div class="chart-card"><div class="chart-title">Monthly sales trend</div><div class="chart-sub">Gross sales by month since inception — hover a bar for details</div><div class="trend">${bars}</div></div>`;
+}
+function renderMonthlyTable(monthly,lifeT){
+  const rows=monthly.map(m=>{const gp=m.t.grossProfit,share=lifeT.gross?(m.t.gross/lifeT.gross*100).toFixed(1):'0.0';return `<tr><td>${m.label}</td><td>${fmtN(m.t.gross)}</td><td>${fmtN(m.t.exv)}</td><td>${fmtN(m.t.costOfSales)}</td><td>${fmtN(gp)}</td><td>${ratio(gp,m.t.exv)}</td><td>${ratio(m.t.discounts,m.t.gross)}</td><td>${m.t.covers}</td><td>${m.t.transactions}</td><td>${m.days.length}</td><td>${share}%</td></tr>`}).join('');
+  return `<div class="card"><div class="card-header"><div class="card-title">Month-by-month performance</div><div class="card-sub">All recorded months since inception</div></div><div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Gross</th><th>Ex. VAT</th><th>COGS</th><th>Gross profit</th><th>GP %</th><th>Discount %</th><th>Covers</th><th>Transactions</th><th>Days</th><th>Share</th></tr></thead><tbody>${rows||'<tr><td colspan="11" style="text-align:center;color:var(--hint)">No data yet</td></tr>'}</tbody><tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td>${fmtN(lifeT.gross)}</td><td>${fmtN(lifeT.exv)}</td><td>${fmtN(lifeT.costOfSales)}</td><td>${fmtN(lifeT.grossProfit)}</td><td>${ratio(lifeT.grossProfit,lifeT.exv)}</td><td>${ratio(lifeT.discounts,lifeT.gross)}</td><td>${lifeT.covers}</td><td>${lifeT.transactions}</td><td>${monthly.reduce((s,m)=>s+m.days.length,0)}</td><td>100%</td></tr></tfoot></table></div></div>`;
+}
+function buildAnalysisCommentary(){
+  const items=[];
+  const allDays=Object.keys(db.daily).sort();
+  if(!allDays.length){items.push({tag:'info',text:'No sales data has been recorded yet. Commentary will appear automatically as Daily Entry records are saved.'});return items}
+  const lifeAgg=aggregate(allDays),lifeT=totalsFromAgg(lifeAgg);
+  const monthly=monthlyAggregates();
+  items.push({tag:'info',text:`Since records began on ${dateLbl(allDays[0])}, total sales stand at ${fmt(lifeT.gross)} (${fmtN(lifeT.exv)} ex. VAT) across ${allDays.length} recorded days, with an overall gross margin of ${ratio(lifeT.grossProfit,lifeT.exv)}.`});
+  if(allDays.length>=4){
+    const last7=allDays.slice(-7),prev7=allDays.slice(-14,-7);
+    if(prev7.length){
+      const l7=totalsFromAgg(aggregate(last7)),p7=totalsFromAgg(aggregate(prev7));
+      if(p7.gross>0){const momentum=(l7.gross-p7.gross)/p7.gross*100;items.push({tag:momentum>=0?'pos':'neg',text:`Recent momentum: the last ${last7.length} recorded days totalled ${fmt(l7.gross)}, ${momentum>=0?'up':'down'} ${Math.abs(momentum).toFixed(1)}% versus the preceding ${prev7.length} days.`})}
+    }
+  }
+  if(monthly.length>=2){
+    const latest=monthly[monthly.length-1],prev=monthly[monthly.length-2];
+    if(prev.t.gross>0){const mom=(latest.t.gross-prev.t.gross)/prev.t.gross*100;items.push({tag:mom>=0?'pos':'neg',text:`${latest.label} sales are ${mom>=0?'up':'down'} ${Math.abs(mom).toFixed(1)}% versus ${prev.label} (${fmt(latest.t.gross)} vs ${fmt(prev.t.gross)}).`})}
+  }
+  const completeMonths=monthly.length>1?monthly.slice(0,-1):monthly;
+  if(completeMonths.length>=3){
+    const trailing=completeMonths.slice(-3),avgGross=trailing.reduce((s,m)=>s+m.t.gross,0)/trailing.length,latestComplete=completeMonths[completeMonths.length-1];
+    if(avgGross>0){const vsAvg=(latestComplete.t.gross-avgGross)/avgGross*100;items.push({tag:vsAvg>=0?'pos':'warn',text:`${latestComplete.label} came in ${vsAvg>=0?'above':'below'} the trailing ${trailing.length}-month average pace (${fmt(avgGross)}) by ${Math.abs(vsAvg).toFixed(1)}%.`})}
+  }
+  if(completeMonths.length>=2){
+    let streak=0,dir=null;
+    for(let i=completeMonths.length-1;i>0;i--){const cur=completeMonths[i].t.gross,prev=completeMonths[i-1].t.gross;if(prev<=0)break;const growing=cur>=prev;if(dir===null){dir=growing;streak=1}else if(growing===dir){streak++}else break}
+    if(streak>=2)items.push({tag:dir?'pos':'neg',text:`Sales have ${dir?'grown':'declined'} for ${streak} consecutive recorded months.`});
+    const first=completeMonths[0],last=completeMonths[completeMonths.length-1];
+    const cogsFirst=first.t.gross?first.t.costOfSales/first.t.gross*100:0,cogsLast=last.t.gross?last.t.costOfSales/last.t.gross*100:0,cogsDelta=cogsLast-cogsFirst;
+    if(Math.abs(cogsDelta)>=1)items.push({tag:cogsDelta<=0?'pos':'warn',text:`Cost of sales has moved from ${cogsFirst.toFixed(1)}% of gross in ${first.label} to ${cogsLast.toFixed(1)}% in ${last.label} (${cogsDelta>=0?'+':''}${cogsDelta.toFixed(1)} pp).`});
+    const discFirst=first.t.gross?first.t.discounts/first.t.gross*100:0,discLast=last.t.gross?last.t.discounts/last.t.gross*100:0,discDelta=discLast-discFirst;
+    if(Math.abs(discDelta)>=1)items.push({tag:discDelta<=0?'pos':'warn',text:`Discounting has ${discDelta>=0?'risen':'eased'} from ${discFirst.toFixed(1)}% of gross in ${first.label} to ${discLast.toFixed(1)}% in ${last.label}.`});
+    const avgFirst=first.t.transactions?first.t.gross/first.t.transactions:0,avgLast=last.t.transactions?last.t.gross/last.t.transactions:0;
+    if(avgFirst>0){const avgDelta=(avgLast-avgFirst)/avgFirst*100;if(Math.abs(avgDelta)>=3)items.push({tag:avgDelta>=0?'pos':'warn',text:`Average transaction value has ${avgDelta>=0?'risen':'fallen'} ${Math.abs(avgDelta).toFixed(1)}% from ${fmtN(avgFirst)} in ${first.label} to ${fmtN(avgLast)} in ${last.label}.`})}
+    const cardFirst=first.t.gross?first.t.card/first.t.gross*100:0,cardLast=last.t.gross?last.t.card/last.t.gross*100:0,cardDelta=cardLast-cardFirst;
+    if(Math.abs(cardDelta)>=3)items.push({tag:'info',text:`Card payments moved from ${cardFirst.toFixed(1)}% of receipts in ${first.label} to ${cardLast.toFixed(1)}% in ${last.label}.`});
+    const branchShares=branches().map(b=>{const fCur=first.agg[b.id]?.gross||0,lCur=last.agg[b.id]?.gross||0,fShare=first.t.gross?fCur/first.t.gross*100:0,lShare=last.t.gross?lCur/last.t.gross*100:0;return {name:b.name,delta:lShare-fShare,fShare,lShare}});
+    const gainer=branchShares.slice().sort((a,z)=>z.delta-a.delta)[0],loser=branchShares.slice().sort((a,z)=>a.delta-z.delta)[0];
+    if(gainer&&gainer.delta>=1)items.push({tag:'pos',text:`${gainer.name} has grown its share of total sales from ${gainer.fShare.toFixed(1)}% to ${gainer.lShare.toFixed(1)}% since ${first.label}.`});
+    if(loser&&loser.delta<=-1&&loser.name!==(gainer&&gainer.name))items.push({tag:'neg',text:`${loser.name}'s share of total sales has fallen from ${loser.fShare.toFixed(1)}% to ${loser.lShare.toFixed(1)}% since ${first.label}.`});
+    const sorted=completeMonths.slice().sort((a,z)=>z.t.gross-a.t.gross),best=sorted[0],worst=sorted[sorted.length-1];
+    items.push({tag:'info',text:`${best.label} is the strongest recorded month so far at ${fmt(best.t.gross)}; ${worst.label} is the softest at ${fmt(worst.t.gross)}.`});
+  }
+  if(allDays.length>=7){
+    const avgDaily=lifeT.gross/allDays.length,projectedAnnual=avgDaily*365;
+    items.push({tag:'info',text:`At the average daily pace recorded to date (${fmtN(avgDaily)}/day), sales would annualize to roughly ${fmt(projectedAnnual)} — a rough estimate that will firm up as more months are recorded.`});
+  }
+  return items;
+}
+function renderAnalysis(){
+  const el=document.getElementById('view-analysis');
+  const allDays=Object.keys(db.daily).sort();
+  if(!allDays.length){el.innerHTML='<div class="empty">No data recorded yet. This section will populate automatically as Daily Entry records are saved.</div>';return}
+  const lifeAgg=aggregate(allDays),lifeT=totalsFromAgg(lifeAgg),monthly=monthlyAggregates(),commentary=buildAnalysisCommentary();
+  el.innerHTML=`<div class="card"><div class="card-header"><div><div class="card-title">Executive Analysis</div><div class="card-sub">Lifetime trend analysis since ${dateLbl(allDays[0])} — updates automatically as new days are recorded. Uses month-over-month and recent-momentum comparisons rather than year-on-year, since a full year of history isn't on record yet.</div></div></div></div>`
+    +renderMetricBlock(lifeT,'Lifetime','Since '+dateLbl(allDays[0]))
+    +renderCommentaryCard(commentary,'Automated Commentary — Sales, Cost & Transaction Trends','Generated from month-over-month and recent-momentum comparisons across all recorded history')
+    +`<div class="chart-grid">${renderMonthlyTrendChart(monthly)}${renderFinancialTrendChart(allDays,'Lifetime financial trend')}</div>`
+    +renderMonthlyTable(monthly,lifeT)
+    +renderBranchTable(lifeAgg,lifeT,'Lifetime branch performance','Since '+dateLbl(allDays[0]));
+}
+/* ============ End Executive Analysis ============ */
 function renderHistory(){const el=document.getElementById('view-history'),days=Object.keys(db.daily).sort().reverse().slice(0,90);if(!days.length){el.innerHTML='<div class="empty">No history yet.</div>';return}const rows=days.map(d=>{const total=branches().reduce((s,b)=>s+(db.daily[d]?.[b.id]?.gross||0),0),bcount=branches().filter(b=>db.daily[d]?.[b.id]?.gross>0).length;return `<div class="hist-row"><div><div class="hist-date">${dateLbl(d)}</div><div class="hist-sub">${bcount} branch${bcount!==1?'es':''}</div></div><div class="hist-amt"><div class="main">${fmt(total)}</div><div class="sub">${fmtN(total/1.05)} ex. VAT</div></div>${isEditor()?`<button class="del-btn" onclick="delDay('${d}')" title="Delete">✕</button>`:''}</div>`}).join('');el.innerHTML=`<div class="card"><div class="card-header"><div class="card-title">History</div><div class="card-sub">Last 90 saved days</div></div>${rows}</div>`}
 
 function budgetKey(){return selectedMonth}
@@ -899,6 +1025,11 @@ function exportPDF(){
   }else if(curView==='ytd'){
     const yDays=ytdDays();
     target.innerHTML=buildRangeReport(yDays,ytdLabel(),ytdMode==='range'?'Custom Range Sales Report':'YTD Sales Report',getYtdCommentary(yDays));
+  }else if(curView==='analysis'){
+    const aDays=Object.keys(db.daily).sort();
+    if(aDays.length){
+      target.innerHTML=buildRangeReport(aDays,'Since '+dateLbl(aDays[0]),'Executive Analysis Report',buildAnalysisCommentary());
+    }
   }else{
     const reportDate=(curView==='entry'?entryDate:(selectedDay||today()));
     target.innerHTML=buildDailySummaryReport(reportDate);
