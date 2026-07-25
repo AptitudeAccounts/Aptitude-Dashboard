@@ -27,16 +27,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .bar-section{margin-top:4px}.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}.bar-lbl{width:130px;font-size:12px;color:var(--muted);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar-track{flex:1;background:var(--bg);border-radius:3px;height:8px;overflow:hidden;border:1px solid var(--border)}.bar-fill{height:100%;border-radius:2px;transition:width .4s cubic-bezier(.4,0,.2,1)}.bar-val{font-size:11px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);min-width:100px;text-align:right}
 .hist-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:12px}.hist-row:last-child{border-bottom:none}.hist-date{font-size:13px;font-weight:500}.hist-sub{font-size:11px;color:var(--muted);margin-top:1px}.hist-amt{text-align:right}.hist-amt .main{font-size:13px;font-weight:600;font-family:'DM Mono',monospace}.hist-amt .sub{font-size:11px;color:var(--blue);font-family:'DM Mono',monospace;margin-top:1px}.del-btn{background:none;border:none;color:var(--hint);cursor:pointer;padding:4px 6px;border-radius:4px;font-size:13px;line-height:1;transition:color .15s}.del-btn:hover{color:var(--red)}
 .empty{text-align:center;padding:36px 20px;color:var(--hint);font-size:13px;border:1px dashed var(--border2);border-radius:var(--r)}.toast-wrap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999;pointer-events:none}.toast{background:var(--text);color:#fff;padding:9px 20px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;transition:opacity .2s;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.15)}.toast.show{opacity:1}.pay-mix{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.pay-pill{font-size:11px;padding:3px 10px;border-radius:99px;font-weight:500}.pay-pill.cash{background:var(--green-bg);color:var(--green)}.pay-pill.card{background:var(--blue-bg);color:var(--blue)}.pay-pill.bank{background:var(--teal-bg);color:var(--teal)}
-
 .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:16px}.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}.chart-title{font-size:14px;font-weight:600;margin-bottom:4px}.chart-sub{font-size:12px;color:var(--muted);margin-bottom:14px}.donut-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.donut{width:138px;height:138px;border-radius:50%;position:relative;flex:0 0 auto}.donut:after{content:'';position:absolute;inset:26px;background:var(--surface);border-radius:50%;border:1px solid var(--border)}.legend{display:flex;flex-direction:column;gap:8px;min-width:160px;flex:1}.legend-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px}.legend-left{display:flex;align-items:center;gap:7px;color:var(--muted)}.legend-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}.legend-val{font-family:'DM Mono',monospace;font-weight:600;color:var(--text)}.ratio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:16px}.ratio-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;box-shadow:var(--shadow)}.ratio-card .rl{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:5px}.ratio-card .rv{font-size:18px;font-weight:600;font-family:'DM Mono',monospace}.ratio-card .rs{font-size:11px;color:var(--muted);margin-top:2px}.trend{display:flex;align-items:flex-end;gap:5px;height:170px;padding:12px 4px 4px;border-left:1px solid var(--border);border-bottom:1px solid var(--border);overflow-x:auto}.trend-bar{min-width:16px;border-radius:4px 4px 0 0;position:relative}.trend-bar:hover:after{content:attr(data-tip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--text);color:white;font-size:11px;white-space:nowrap;padding:4px 7px;border-radius:5px;margin-bottom:5px;z-index:2}.budget-bars{display:flex;flex-direction:column;gap:10px}.budget-bar-row{display:grid;grid-template-columns:130px 1fr 70px;gap:10px;align-items:center;font-size:12px}.progress-track{height:10px;border:1px solid var(--border);background:var(--bg);border-radius:99px;overflow:hidden}.progress-fill{height:100%;border-radius:99px;transition:width .3s}
-
 @media(max-width:640px){.nav-btn{font-size:11px;padding:6px 8px}.metrics{grid-template-columns:1fr 1fr}.btn-row{flex-direction:column}.bar-lbl{width:105px}.app{padding-left:12px;padding-right:12px}}
-
-
 .login-panel{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:1000;padding:18px}
 .login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:0 12px 40px rgba(0,0,0,.18);width:min(420px,100%);padding:22px}
 .login-card h2{font-size:18px;margin-bottom:6px}.login-card p{font-size:12px;color:var(--muted);margin-bottom:16px}.sync-chip{font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:99px;padding:5px 10px}
-
 /* Print / PDF export */
 .print-only{display:none}
 html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
@@ -61,8 +56,6 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   .print-only{display:block!important}
   .no-print{display:none!important}
 }
-
-
 /* Dedicated colorful Daily Sales Summary PDF */
 #dailyPdfReport{display:none}
 .report-page{font-family:'DM Sans',sans-serif;color:#12213A;background:#fff;padding:0;page-break-after:always;break-after:page;min-height:276mm}
@@ -96,7 +89,6 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   #dailyPdfReport{display:block!important}
   .report-page{break-inside:avoid;page-break-inside:avoid}
 }
-
 </style>
 </head>
 <body>
@@ -114,7 +106,6 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
       <span class="date-chip" id="datechip"></span>
     </div>
   </div>
-
   <div class="nav">
     <button class="nav-btn" onclick="showView('entry')" id="nb-entry">Daily entry</button>
     <button class="nav-btn active" onclick="showView('summary')" id="nb-summary">Today's summary</button>
@@ -126,13 +117,11 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
     <button class="nav-btn" onclick="showView('breakeven')" id="nb-breakeven">ARC Al Nahyan Delivery</button>
     <button class="nav-btn" onclick="showView('events')" id="nb-events">Events</button>
   </div>
-
   <div class="print-only" id="printHeader" style="margin-bottom:14px">
     <div style="font-size:12px;color:#555">Generated report</div>
     <div style="font-size:18px;font-weight:600" id="printTitle">Management Report</div>
     <div style="font-size:11px;color:#555" id="printSubTitle"></div>
   </div>
-
   <div id="view-entry" style="display:none"></div>
   <div id="view-summary"></div>
   <div id="view-mtd" style="display:none"></div>
@@ -158,7 +147,6 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   </div>
 </div>
 <div class="toast-wrap"><div class="toast" id="toast"></div></div>
-
 <script>
 const STORAGE_VERSION=3;
 const DEFAULT_BRANCHES=[
@@ -172,7 +160,6 @@ const DEFAULT_BRANCHES=[
 const KEY='aptslice_dashboard_v3';
 const OLD_KEY='aptslice_sales_v2';
 const DELIVERY_BRANCH_ID='arc_al_nahyan';
-
 /*
   GOOGLE SHEETS CONNECTION
   1) Deploy the Apps Script file I provided as a Web App.
@@ -190,7 +177,6 @@ let session={};
 let auth=loadAuth();
 let cloudReady=false;
 let syncTimer=null;
-
 function sanitizeId(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('branch_'+Date.now())}
 function today(){return new Date().toISOString().split('T')[0]}
 function todayLbl(){return new Date().toLocaleDateString('en-AE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
@@ -209,7 +195,6 @@ function monthPicker(prefix='report'){const [y,m]=(selectedMonth||today().substr
 function shiftDate(d,days){const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+days);return x.toISOString().split('T')[0]}
 function applyAutoMix(e){const g=Number(e.gross||0);e.food=round2(g*.75);e.bev=round2(g*.20);e.retail=round2(g*.05);e.costOfSales=round2(g*.27);e.dineInSales=round2(Math.max(0,g-(Number(e.takeawaySales||0)+Number(e.thirdPartySales||0))));return e}
 function ensureEntryShape(e){return applyAutoMix({...blankEntry(),...(e||{})})}
-
 function migrateBranches(d){
   if(!d||!Array.isArray(d.branches))return d;
   DEFAULT_BRANCHES.forEach(db_=>{if(!d.branches.some(b=>b.id===db_.id))d.branches.push({...db_})});
@@ -246,7 +231,6 @@ async function api(action,payload={}){
   if(!data.ok)throw new Error(data.error||'Request failed');
   return data;
 }
-
 function normalizeDateKeyClient(v){
   const s=String(v||'').trim();
   if(!s)return '';
@@ -332,13 +316,11 @@ function updateModeUI(){
   const lb=document.getElementById('loginBtn');if(lb)lb.style.display=isViewer()?'inline-block':'none';
   const lo=document.getElementById('logoutBtn');if(lo)lo.style.display=isEditor()?'inline-block':'none';
 }
-
 function initSessionFromDate(){
   session={}; branches().forEach(b=>session[b.id]=ensureEntryShape(db.daily[entryDate]?.[b.id]));
   if(activeB>=branches().length)activeB=0;
 }
 function setEntryDate(v){entryDate=v||today();initSessionFromDate();renderEntry()}
-
 function showView(v){curView=v;['entry','summary','mtd','ytd','analysis','history','budget','breakeven','events'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
 function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='analysis')renderAnalysis();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else renderEntry()}
 function renderAll(){updateModeUI();renderCurrent()}
@@ -396,14 +378,12 @@ function saveB(bid){
   saveDB();toast(branchById(bid).name+' saved for '+entryDate+' ✓');renderEntry();
 }
 function delDay(d){if(isViewer())return toast('Editing is available after admin login');delete db.daily[d];saveDB();toast('Deleted '+d);renderHistory()}
-
 function renderEntry(){
   const bs=branches(); if(!bs.length){document.getElementById('view-entry').innerHTML='<div class="empty">No active branches. Add a branch in Branchwise budgeting.</div>';return}
   const b=bs[activeB],d=applyAutoMix(session[b.id]); const exV=d.gross/1.05,vatA=d.gross-exV,payT=(d.cash||0)+(d.visa||0)+(d.master||0)+(d.bank||0)+(d.talabat||0)+(d.deliveroo||0),diff=Math.abs(d.gross-payT),payOk=d.gross===0||diff<.05,mixT=(d.food||0)+(d.bev||0)+(d.retail||0),mixOk=mixT===0||Math.abs(exV-mixT)<.5;
   const disabled=isViewer()?'disabled':'';
   const tabs=bs.map((br,i)=>`<button class="btab ${i===activeB?'active':''}" onclick="switchB(${i})"><span class="bdot" style="background:${br.color}"></span>${br.name}${session[br.id]?.saved?'<span class="bcheck">✓</span>':''}</button>`).join('');
   document.getElementById('view-entry').innerHTML=`
-
 <div class="card"><div class="grid-3"><div class="fld"><label>Entry date</label><input type="date" value="${entryDate}" onchange="setEntryDate(this.value)" ${disabled}></div><div class="fld"><label>Selected year</label><input value="${entryDate.substring(0,4)}" disabled></div><div class="fld"><label>Selected month</label><input value="${new Date(entryDate+'T12:00:00').toLocaleDateString('en-AE',{month:'long'})}" disabled></div></div><div class="small-note">Use the date field to enter or update previous date data. Reports use this date automatically.</div></div>
 <div class="btabs">${tabs}</div>
 <div class="card">
@@ -424,7 +404,6 @@ function renderEntry(){
 </div>
 ${activeB<bs.length-1?`<button class="btn primary" style="width:100%" onclick="switchB(${activeB+1})">Next: ${bs[activeB+1].name} →</button>`:`<button class="btn report" style="width:100%" onclick="showView('summary')">View summary →</button>`}`;
 }
-
 function getDayData(d=today()){return db.daily[d]||{}}
 function aggregate(days){
   const out={};
@@ -474,7 +453,6 @@ function ytdFilters(){
 }
 function getYears(){const ys=new Set([new Date().getFullYear()]);Object.keys(db.daily).forEach(d=>ys.add(parseInt(d.substring(0,4))));Object.keys(db.budgets||{}).forEach(k=>ys.add(parseInt(k.substring(0,4))));return [...ys].filter(Boolean).sort((a,b)=>b-a)}
 function ratio(n,d){return d?((n/d)*100).toFixed(1)+'%':'—'}
-
 /* ============ Executive Commentary Engine (CEO Briefing) ============ */
 function shiftMonthKey(mk,delta){const [y,m]=mk.split('-').map(Number);const d=new Date(y,m-1+delta,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function monthKeyLabel(mk){return monthName(mk)+' '+mk.split('-')[0]}
@@ -616,7 +594,6 @@ function renderBranchTable(agg,t,title,subtitle,cmp=null){
   const wowFooter=cmpAgg?`<td>${branchWowCell(t.gross||0,cmpT?.gross||0)}</td>`:'';
   return `<div class="card"><div class="card-header"><div class="card-title">${title}</div><div class="card-sub">${subtitle}</div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Gross</th><th>Ex. VAT</th><th>COGS</th><th>Gross profit</th><th>GP %</th><th>Discounts</th><th>Covers</th><th>Txn/Days</th><th>Share</th>${wowHeader}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td>${fmtN(t.gross)}</td><td>${fmtN(t.exv)}</td><td>${fmtN(t.costOfSales)}</td><td>${fmtN(t.grossProfit)}</td><td>${ratio(t.grossProfit,t.exv)}</td><td>${fmtN(t.discounts)}</td><td>${t.covers}</td><td>${t.transactions}</td><td>100%</td>${wowFooter}</tr></tfoot></table></div></div>`}
 function renderBars(agg,t,title){const bars=branches().slice().sort((a,z)=>(agg[z.id]?.gross||0)-(agg[a.id]?.gross||0)).filter(b=>(agg[b.id]?.gross||0)>0).map(b=>{const pctv=t.gross>0?(agg[b.id].gross/t.gross*100):0;return `<div class="bar-row"><div class="bar-lbl">${b.name}</div><div class="bar-track"><div class="bar-fill" style="width:${pctv.toFixed(1)}%;background:${b.color}"></div></div><div class="bar-val">${fmt(agg[b.id].gross)}</div></div>`}).join('')||'<div class="empty">No branch sales to show.</div>';return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="bar-section">${bars}</div></div>`}
-
 function renderSummary(){
   const d=selectedDay||today(),days=db.daily[d]?[d]:[],agg=aggregate(days),t=totalsFromAgg(agg),el=document.getElementById('view-summary'),lbl=dateLbl(d);
   if(!days.length||t.gross<=0){el.innerHTML=reportFilters('day')+`<div class="empty"><div>No data saved for ${lbl}.</div><div style="margin-top:6px;font-size:12px">Select another date, or ask an admin to save Daily Entry data for this date.</div></div>`;return}
@@ -679,7 +656,6 @@ function getYtdCommentary(days){
   return buildTotalSalesYtdCommentary(days);
 }
 function renderYTD(){const el=document.getElementById('view-ytd'),days=ytdDays();if(!days.length){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';const commentaryItems=getYtdCommentary(days);el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
-
 /* ============ Executive Analysis (lifetime / month-over-month, since YoY history isn't available yet) ============ */
 function monthlyAggregates(){
   const months=[...new Set(Object.keys(db.daily).map(d=>d.slice(0,7)))].sort();
@@ -761,7 +737,6 @@ function renderAnalysis(){
 }
 /* ============ End Executive Analysis ============ */
 function renderHistory(){const el=document.getElementById('view-history'),days=Object.keys(db.daily).sort().reverse().slice(0,90);if(!days.length){el.innerHTML='<div class="empty">No history yet.</div>';return}const rows=days.map(d=>{const total=branches().reduce((s,b)=>s+(db.daily[d]?.[b.id]?.gross||0),0),bcount=branches().filter(b=>db.daily[d]?.[b.id]?.gross>0).length;return `<div class="hist-row"><div><div class="hist-date">${dateLbl(d)}</div><div class="hist-sub">${bcount} branch${bcount!==1?'es':''}</div></div><div class="hist-amt"><div class="main">${fmt(total)}</div><div class="sub">${fmtN(total/1.05)} ex. VAT</div></div>${isEditor()?`<button class="del-btn" onclick="delDay('${d}')" title="Delete">✕</button>`:''}</div>`}).join('');el.innerHTML=`<div class="card"><div class="card-header"><div class="card-title">History</div><div class="card-sub">Last 90 saved days</div></div>${rows}</div>`}
-
 function budgetKey(){return selectedMonth}
 function getBudget(k=budgetKey()){if(!db.budgets[k])db.budgets[k]={};return db.budgets[k]}
 function saveBudgetValue(bid,field,val){if(isViewer())return;const k=budgetKey();if(!db.budgets[k])db.budgets[k]={};if(!db.budgets[k][bid])db.budgets[k][bid]={sales:0,cost:0};db.budgets[k][bid][field]=parseFloat(val)||0;saveDB()}
@@ -837,7 +812,6 @@ function renderBudget(){
   const totalSalesBudget=branches().reduce((s,b)=>s+(bud[b.id]?.sales||0),0),totalCostBudget=branches().reduce((s,b)=>s+(bud[b.id]?.cost||0),0),t=totalsFromAgg(agg),actualCost=branches().reduce((s,b)=>s+(agg[b.id]?.costOfSales||0),0);
   el.innerHTML=`<div class="inline-filters">${monthPicker('budget')}${isEditor()?`<div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearBudgetMonth()">Clear monthly budget</button></div>`:''}</div><div class="metrics"><div class="metric blue"><div class="ml">Sales budget</div><div class="mv">${fmtN(totalSalesBudget)}</div></div><div class="metric"><div class="ml">Actual sales</div><div class="mv">${fmtN(t.gross)}</div><div class="ms">${days.length} recorded days</div></div><div class="metric ${t.gross-totalSalesBudget>=0?'green':'red'}"><div class="ml">Sales variance</div><div class="mv">${fmtN(t.gross-totalSalesBudget)}</div><div class="ms">${pct(t.gross-totalSalesBudget,totalSalesBudget)}</div></div><div class="metric amber"><div class="ml">Cost budget</div><div class="mv">${fmtN(totalCostBudget)}</div></div><div class="metric ${actualCost-totalCostBudget<=0?'green':'red'}"><div class="ml">Cost variance</div><div class="mv">${fmtN(actualCost-totalCostBudget)}</div><div class="ms">${pct(actualCost-totalCostBudget,totalCostBudget)}</div></div></div><div class="chart-grid">${renderRunRateForecast(k,totalSalesBudget,totalCostBudget,t.gross,actualCost)}</div>${renderBudgetCharts(bud,agg,totalSalesBudget,totalCostBudget,t.gross,actualCost)}<div class="card"><div class="card-header"><div><div class="card-title">Branchwise budget vs actual</div><div class="card-sub">Actuals come from Daily Entry for ${new Date(k+'-01T12:00:00').toLocaleDateString('en-AE',{month:'long',year:'numeric'})}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Branch</th><th>Sales budget</th><th>Actual sales</th><th>Sales var</th><th>Sales var %</th><th>Cost budget</th><th>Actual cost</th><th>Cost var</th><th>Cost var %</th></tr></thead><tbody>${rows}</tbody></table></div><div class="small-note">Actual cost uses the Cost of Sales / COGS field entered in Daily Entry.</div></div>${isEditor()?`<div class="card"><div class="card-header"><div><div class="card-title">Branch settings</div><div class="card-sub">Add future branches here. Inactive branches remain in stored history but are hidden from new reports.</div></div></div><div class="grid-2"><div class="fld"><label>New branch name</label><input id="newBranchName" placeholder="e.g. New Branch"></div><div class="fld"><label>&nbsp;</label><button class="btn primary" onclick="addBranch()">Add branch</button></div></div><div class="tbl-wrap" style="margin-top:16px"><table><thead><tr><th>Branch</th><th>Status</th><th>Action</th></tr></thead><tbody>${branchRows}</tbody></table></div></div>`:''}`;
 }
-
 function breakevenKey(){return selectedMonth}
 function getBreakeven(k=breakevenKey()){if(!db.breakeven)db.breakeven={};if(!db.breakeven[k])db.breakeven[k]={orders:0,sales:0};return db.breakeven[k]}
 function updateBreakevenValue(field,val){
@@ -849,6 +823,124 @@ function updateBreakevenValue(field,val){
   saveDB();
   renderBreakeven();
 }
+/* ============ ARC Al Nahyan — branch-scoped full report helpers ============ */
+function totalsForOne(m){
+  m=m||blankEntry();
+  const card=(m.visa||0)+(m.master||0);
+  const dineInSales=m.dineInSales||Math.max(0,(m.gross||0)-(m.takeawaySales||0)-(m.thirdPartySales||0));
+  const exv=(m.gross||0)/1.05,vat=(m.gross||0)-exv,grossProfit=exv-(m.costOfSales||0);
+  return {...m,card,dineInSales,exv,vat,grossProfit};
+}
+function branchAggTotals(days,bid){
+  const agg=aggregate(days);
+  return totalsForOne(agg[bid]||blankEntry());
+}
+function renderBranchTrendChart(days,bid,title){
+  const vals=days.map(d=>({date:d,value:db.daily[d]?.[bid]?.gross||0})).filter(x=>x.value>0);
+  const max=Math.max(...vals.map(x=>x.value),0);
+  const bars=vals.map(x=>`<div class="trend-bar" data-tip="${dateLbl(x.date)}: ${fmt(x.value)}" style="height:${max?(x.value/max*100).toFixed(1):0}%;background:var(--blue)"></div>`).join('')||'<div class="empty">No trend data</div>';
+  return `<div class="chart-card"><div class="chart-title">${title}</div><div class="chart-sub">Daily gross sales trend</div><div class="trend">${bars}</div></div>`;
+}
+function renderBranchFinancialTrendChart(days,bid,title){
+  const sorted=[...days].sort();
+  const pts=sorted.map(d=>{
+    const e=ensureEntryShape(db.daily[d]?.[bid]||{});
+    const exv=(e.gross||0)/1.05;
+    return {date:d,gross:e.gross,margin:exv?((exv-(e.costOfSales||0))/exv*100):0,cogsPct:e.gross?((e.costOfSales||0)/e.gross*100):0,discPct:e.gross?((e.discounts||0)/e.gross*100):0};
+  }).filter(p=>p.gross>0);
+  if(pts.length<2)return `<div class="chart-card"><div class="chart-title">${title}</div><div class="chart-sub">Gross margin %, COGS % and Discount % by day</div><div class="empty">Need at least 2 recorded days to show a trend.</div></div>`;
+  const w=680,h=240,pad=34;
+  const maxVal=Math.max(20,...pts.flatMap(p=>[p.margin,p.cogsPct,p.discPct]))*1.1;
+  const x=i=>pad+i*((w-pad*2)/(Math.max(pts.length-1,1)));
+  const y=v=>h-pad-(Math.max(0,v)/maxVal)*(h-pad*2);
+  const poly=key=>pts.map((p,i)=>`${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+  const last=pts[pts.length-1],first=pts[0];
+  return `<div class="chart-card"><div class="chart-title">${title}</div><div class="chart-sub">Gross margin %, COGS % and Discount % — ${dateLbl(first.date)} to ${dateLbl(last.date)}</div><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:260px;overflow:visible"><line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="#E8E6E0"/><line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="#E8E6E0"/><polyline points="${poly('margin')}" fill="none" stroke="#16A34A" stroke-width="3"/><polyline points="${poly('cogsPct')}" fill="none" stroke="#D97706" stroke-width="3"/><polyline points="${poly('discPct')}" fill="none" stroke="#DC2626" stroke-width="3"/><text x="${pad}" y="18" font-size="11" fill="#7A7870">${Math.round(maxVal)}%</text></svg><div class="pay-mix"><span class="pay-pill" style="background:var(--green-bg);color:var(--green)">Margin now: ${last.margin.toFixed(1)}%</span><span class="pay-pill" style="background:var(--amber-bg);color:var(--amber)">COGS now: ${last.cogsPct.toFixed(1)}%</span><span class="pay-pill" style="background:var(--red-bg);color:var(--red)">Discount now: ${last.discPct.toFixed(1)}%</span></div></div>`;
+}
+function renderBranchFullCharts(t,days,bid,label){
+  return `<div class="chart-grid">${renderDonutCard('Revenue mix',[{label:'Food',value:t.food,color:'var(--blue)'},{label:'Beverage',value:t.bev,color:'var(--green)'},{label:'Retail',value:t.retail,color:'var(--amber)'}],'Automatic split: Food 75%, Beverages 20%, Retail 5% of gross')}${renderDonutCard('Payment mix',[{label:'Qlub',value:t.cash,color:'var(--green)'},{label:'Cards',value:t.card,color:'var(--blue)'},{label:'Bank transfer',value:t.bank,color:'var(--teal)'},{label:'Talabat',value:t.talabat,color:'#EA580C'},{label:'Deliveroo',value:t.deliveroo,color:'#00CCBC'}],'Gross payment split')}${renderBranchTrendChart(days,bid,label+' — daily sales trend')}</div><div class="chart-grid">${renderBranchFinancialTrendChart(days,bid,label+' — financial trend')}</div>`;
+}
+function branchDayOverDayBullet(bid,label){
+  const days=Object.keys(db.daily).filter(d=>(db.daily[d]?.[bid]?.gross||0)>0).sort();
+  if(days.length<2)return null;
+  const last=days[days.length-1],prev=days[days.length-2];
+  const lastVal=db.daily[last][bid].gross||0,prevVal=db.daily[prev][bid].gross||0;
+  if(prevVal<=0)return null;
+  const delta=(lastVal-prevVal)/prevVal*100;
+  return {tag:delta>=0?'pos':'neg',text:`Day-over-day: ${label} sales on ${dateLbl(last)} (${fmt(lastVal)}) were ${delta>=0?'up':'down'} ${Math.abs(delta).toFixed(1)}% vs ${dateLbl(prev)} (${fmt(prevVal)}).`};
+}
+function breakevenPacingBullet(monthKey,days,bid,label){
+  const be=getBreakeven(monthKey);
+  if(!be.sales&&!be.orders)return null;
+  if(!days.length)return null;
+  const t=branchAggTotals(days,bid);
+  const actualSales=(t.talabat||0)+(t.deliveroo||0);
+  const dim=daysInMonth(monthKey),lastDay=parseInt(days[days.length-1].slice(8,10),10);
+  if(!be.sales)return null;
+  const avgDaily=actualSales/Math.max(lastDay,1),projected=avgDaily*dim,variance=projected-be.sales,variancePct=variance/be.sales*100;
+  if(Math.abs(variancePct)<3)return {tag:'info',text:`${label} delivery sales are pacing in line with the break-even target — projected month-end ${fmt(projected)} vs target ${fmt(be.sales)}.`};
+  return {tag:variancePct>=0?'pos':'risk',text:`At the current run-rate, ${label} delivery sales are projected at ${fmt(projected)} month-end, ${variancePct>=0?'above':'below'} the ${fmt(be.sales)} break-even target by ${Math.abs(variancePct).toFixed(1)}%.`};
+}
+function buildBranchCommentary(currDays,compareDays,compareLabel,bid,label){
+  const items=[];
+  if(!currDays.length)return items;
+  const t=branchAggTotals(currDays,bid);
+  if(!compareDays.length){items.push({tag:'info',text:`No comparable data found for ${compareLabel} yet — commentary will include historical comparisons once more data is recorded.`});return items}
+  const p=branchAggTotals(compareDays,bid);
+  if(p.gross<=0){items.push({tag:'info',text:`${compareLabel} has no recorded sales for ${label}, so growth comparisons aren't available yet.`});return items}
+  const growth=(t.gross-p.gross)/p.gross*100;
+  items.push({tag:growth>=0?'pos':'neg',text:`${label} sales ${growth>=0?'grew':'declined'} ${Math.abs(growth).toFixed(1)}% vs ${compareLabel} (${fmt(t.gross)} vs ${fmt(p.gross)}).`});
+  const marginNow=t.exv?(t.grossProfit/t.exv*100):0,marginPrev=p.exv?(p.grossProfit/p.exv*100):0,marginDelta=marginNow-marginPrev;
+  if(Math.abs(marginDelta)>=0.5)items.push({tag:marginDelta>=0?'pos':'neg',text:`Gross margin ${marginDelta>=0?'improved':'slipped'} ${Math.abs(marginDelta).toFixed(1)} pp to ${marginNow.toFixed(1)}%.`});
+  const ordersNow=(t.talabatOrders||0)+(t.deliverooOrders||0),ordersPrev=(p.talabatOrders||0)+(p.deliverooOrders||0);
+  if(ordersPrev>0){const ordGrowth=(ordersNow-ordersPrev)/ordersPrev*100;if(Math.abs(ordGrowth)>=1)items.push({tag:ordGrowth>=0?'pos':'neg',text:`Delivery orders ${ordGrowth>=0?'rose':'fell'} ${Math.abs(ordGrowth).toFixed(1)}% to ${fmtN(ordersNow)} (Talabat ${fmtN(t.talabatOrders||0)}, Deliveroo ${fmtN(t.deliverooOrders||0)}).`});}
+  const talabatShareNow=t.gross?((t.talabat||0)/t.gross*100):0,talabatSharePrev=p.gross?((p.talabat||0)/p.gross*100):0,talabatDelta=talabatShareNow-talabatSharePrev;
+  if(Math.abs(talabatDelta)>=3)items.push({tag:'info',text:`Talabat's share of ${label} sales moved ${talabatDelta>=0?'up':'down'} ${Math.abs(talabatDelta).toFixed(1)} pp to ${talabatShareNow.toFixed(1)}%.`});
+  const discNow=t.gross?((t.discounts||0)/t.gross*100):0,discPrev=p.gross?((p.discounts||0)/p.gross*100):0,discDelta=discNow-discPrev;
+  if(Math.abs(discDelta)>=1)items.push({tag:discDelta>=0?'warn':'pos',text:`Discounting ${discDelta>=0?'increased':'eased'} ${Math.abs(discDelta).toFixed(1)} pp to ${discNow.toFixed(1)}% of gross.`});
+  return items;
+}
+function getBreakevenCommentary(monthKey,days){
+  const label=branchById(DELIVERY_BRANCH_ID).name;
+  const items=[];
+  const dod=branchDayOverDayBullet(DELIVERY_BRANCH_ID,label);
+  if(dod)items.push(dod);
+  const bp=breakevenPacingBullet(monthKey,days,DELIVERY_BRANCH_ID,label);
+  if(bp)items.push(bp);
+  const momDays=priorComparablePeriod(days);
+  const momLabel=monthKeyLabel(shiftMonthKey(monthKey,-1));
+  items.push(...buildBranchCommentary(days,momDays,momLabel,DELIVERY_BRANCH_ID,label));
+  const yoyDays=yoyComparablePeriod(days);
+  if(yoyDays.length){
+    const t=branchAggTotals(days,DELIVERY_BRANCH_ID),y=branchAggTotals(yoyDays,DELIVERY_BRANCH_ID);
+    if(y.gross>0){const yoyGrowth=(t.gross-y.gross)/y.gross*100;items.push({tag:yoyGrowth>=0?'pos':'neg',text:`Compared with the same period last year, ${label} sales are ${yoyGrowth>=0?'up':'down'} ${Math.abs(yoyGrowth).toFixed(1)}%.`})}
+  }
+  return items;
+}
+function buildBreakevenReport(monthKey){
+  const label=branchById(DELIVERY_BRANCH_ID).name,b=branchById(DELIVERY_BRANCH_ID);
+  const be=getBreakeven(monthKey);
+  const days=Object.keys(db.daily).filter(d=>d.startsWith(monthKey)).sort();
+  const t=branchAggTotals(days,DELIVERY_BRANCH_ID);
+  const actualOrders=(t.talabatOrders||0)+(t.deliverooOrders||0),actualSales=(t.talabat||0)+(t.deliveroo||0);
+  const ordersVar=actualOrders-be.orders,salesVar=actualSales-be.sales;
+  const commentary=getBreakevenCommentary(monthKey,days);
+  const gpPct=t.exv?(t.grossProfit/t.exv*100):0;
+  return `<div class="report-page">
+    <div class="report-head"><div><div class="report-title">${label} — Delivery Performance <span class="report-badge">Break-even</span></div><div style="font-size:12px;color:#E0ECFF">Aptitude &amp; Slice45 management report</div></div><div class="report-meta"><div><b>Period:</b> ${monthName(monthKey)} ${monthKey.split('-')[0]}</div><div><b>Days recorded:</b> ${days.length}</div><div><b>Generated:</b> ${todayLbl()}</div><div><b>Currency:</b> AED</div></div></div>
+    <div class="report-kpis"><div class="report-kpi"><div class="label">Gross incl. VAT</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi"><div class="label">Sales ex. VAT</div><div class="value">${fmtN(t.exv)}</div></div><div class="report-kpi red"><div class="label">COGS</div><div class="value">${fmtN(t.costOfSales)}</div></div><div class="report-kpi green"><div class="label">Gross profit</div><div class="value">${fmtN(t.grossProfit)}</div></div><div class="report-kpi"><div class="label">GP %</div><div class="value">${gpPct.toFixed(1)}%</div></div><div class="report-kpi amber"><div class="label">Delivery orders</div><div class="value">${fmtN(actualOrders)}</div></div></div>
+    ${renderReportCommentary(commentary)}
+    <div class="report-section-title">Break-even: target vs actual</div>
+    <table class="report-table"><thead><tr><th>Metric</th><th>Break-even target</th><th>Actual</th><th>Variance</th><th>Variance %</th></tr></thead><tbody>
+      <tr><td class="name">Orders</td><td>${fmtN(be.orders)}</td><td>${fmtN(actualOrders)}</td><td>${fmtN(ordersVar)}</td><td>${be.orders?pct(ordersVar,be.orders):'—'}</td></tr>
+      <tr><td class="name">Sales (AED)</td><td>${fmtN(be.sales)}</td><td>${fmtN(actualSales)}</td><td>${fmtN(salesVar)}</td><td>${be.sales?pct(salesVar,be.sales):'—'}</td></tr>
+    </tbody></table>
+    <div class="report-section-title" style="margin-top:14px">Ratio analysis</div>
+    <div class="report-ratios"><div class="report-ratio"><div class="label">Gross margin</div><div class="value">${ratio(t.grossProfit,t.exv)}</div></div><div class="report-ratio"><div class="label">COGS / Gross</div><div class="value">${ratio(t.costOfSales,t.gross)}</div></div><div class="report-ratio"><div class="label">Discount / Gross</div><div class="value">${ratio(t.discounts,t.gross)}</div></div><div class="report-ratio"><div class="label">Talabat / Gross</div><div class="value">${ratio(t.talabat,t.gross)}</div></div></div>
+    <div class="report-foot"><span>Prepared from Daily Entry records for ${label}.</span><span>Page 1 of 1</span></div>
+  </div>`;
+}
+/* ============ End ARC Al Nahyan branch-scoped helpers ============ */
 function renderBreakeven(){
   const el=document.getElementById('view-breakeven');
   const b=branchById(DELIVERY_BRANCH_ID);
@@ -856,13 +948,19 @@ function renderBreakeven(){
   if(!branchExists){el.innerHTML='<div class="empty">ARC Al Nahyan branch not found.</div>';return}
   const k=breakevenKey(),be=getBreakeven(k);
   const days=Object.keys(db.daily).filter(d=>d.startsWith(k)).sort();
-  let actualOrders=0,actualSales=0;
-  days.forEach(d=>{const e=db.daily[d]?.[DELIVERY_BRANCH_ID];if(e){actualOrders+=(e.talabatOrders||0)+(e.deliverooOrders||0);actualSales+=(e.talabat||0)+(e.deliveroo||0);}});
+  const branchT=branchAggTotals(days,DELIVERY_BRANCH_ID);
+  let actualOrders=(branchT.talabatOrders||0)+(branchT.deliverooOrders||0),actualSales=(branchT.talabat||0)+(branchT.deliveroo||0);
   const ordersVar=actualOrders-be.orders,salesVar=actualSales-be.sales;
   const ordersPct=be.orders?Math.min(actualOrders/be.orders*100,160):0,salesPct=be.sales?Math.min(actualSales/be.sales*100,160):0;
   const editableOrders=isEditor()?`<input type="number" min="0" step="1" value="${be.orders||''}" onchange="updateBreakevenValue('orders',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:right">`:fmtN(be.orders);
   const editableSales=isEditor()?`<input type="number" min="0" step="0.01" value="${be.sales||''}" onchange="updateBreakevenValue('sales',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:right">`:fmtN(be.sales);
+  const commentaryItems=getBreakevenCommentary(k,days);
   el.innerHTML=`<div class="inline-filters">${monthPicker('breakeven')}</div>
+  <div class="card"><div class="card-header"><div><div class="card-title">${b.name} — Full branch performance</div><div class="card-sub">${days.length} recorded days — ${monthName(k)} ${k.split('-')[0]}. All figures below are pulled automatically from Daily Entry for this branch, not just Today's Summary.</div></div></div></div>
+  ${renderMetricBlock(branchT,b.name,monthName(k)+' '+k.split('-')[0])}
+  ${renderCommentaryCard(commentaryItems,'ARC Al Nahyan — Auto Commentary','Auto-generated day-over-day and month-over-month commentary, including break-even pacing')}
+  ${renderRatioAnalysis(branchT,b.name+' ratio analysis')}
+  ${renderBranchFullCharts(branchT,days,DELIVERY_BRANCH_ID,b.name)}
   <div class="metrics">
     <div class="metric"><div class="ml">Actual orders</div><div class="mv">${fmtN(actualOrders)}</div><div class="ms">Talabat + Deliveroo, ${days.length} recorded days</div></div>
     <div class="metric ${ordersVar>=0?'green':'red'}"><div class="ml">Orders variance</div><div class="mv">${fmtN(ordersVar)}</div><div class="ms">${be.orders?pct(ordersVar,be.orders):'—'}</div></div>
@@ -882,7 +980,6 @@ function renderBreakeven(){
     <div class="chart-card"><div class="chart-title">Sales: break even vs actual</div><div class="budget-bars"><div class="budget-bar-row"><div>Sales</div><div class="progress-track"><div class="progress-fill" style="width:${salesPct}%;background:${actualSales>=be.sales?'var(--green)':'var(--blue)'}"></div></div><div class="mono">${be.sales?ratio(actualSales,be.sales):'—'}</div></div></div></div>
   </div>`;
 }
-
 function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,cash:0,visa:0,master:0,bank:0,commission:0,notes:''}}
 let eventForm=blankEvent();
 let editingEventId=null;
@@ -956,7 +1053,6 @@ function renderEvents(){
   <div class="metrics"><div class="metric"><div class="ml">Events shown</div><div class="mv">${filtered.length}</div><div class="ms">of ${all.length} total on record</div></div><div class="metric blue"><div class="ml">Total event sales</div><div class="mv">${fmtN(totals.gross)}</div></div><div class="metric amber"><div class="ml">Total commission paid</div><div class="mv">${fmtN(totals.commission)}</div></div><div class="metric green"><div class="ml">Net after commission</div><div class="mv">${fmtN(totals.net)}</div></div></div>
   <div class="card"><div class="card-header"><div><div class="card-title">Events record</div><div class="card-sub">${filtered.length} event${filtered.length!==1?'s':''}${eventsFilterFrom||eventsFilterTo?' in selected date range':''}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Date</th><th>Organizer</th><th>Gross sales</th><th>Commission</th><th>Net</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${isEditor()?7:6}" style="text-align:center;color:var(--hint)">No events recorded${eventsFilterFrom||eventsFilterTo?' in this range':''}.</td></tr>`}</tbody>${filtered.length?`<tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td>${fmtN(totals.gross)}</td><td>${fmtN(totals.commission)}</td><td>${fmtN(totals.net)}</td>${isEditor()?'<td></td>':''}</tr></tfoot>`:''}</table></div></div>`;
 }
-
 function branchDailyRows(dayData,t){
   return branches().map(b=>{
     const e=ensureEntryShape(dayData[b.id]||{}),g=e.gross||0,exv=g/1.05,gp=exv-(e.costOfSales||0),share=t.gross?g/t.gross*100:0;
@@ -1030,6 +1126,8 @@ function exportPDF(){
     if(aDays.length){
       target.innerHTML=buildRangeReport(aDays,'Since '+dateLbl(aDays[0]),'Executive Analysis Report',buildAnalysisCommentary());
     }
+  }else if(curView==='breakeven'){
+    target.innerHTML=buildBreakevenReport(breakevenKey());
   }else{
     const reportDate=(curView==='entry'?entryDate:(selectedDay||today()));
     target.innerHTML=buildDailySummaryReport(reportDate);
@@ -1042,7 +1140,6 @@ function exportPDF(){
 }
 function downloadBackup(){if(isViewer())return toast('Editing is available after admin login');const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='aptitude-dashboard-data-backup-'+today()+'.json';a.click();URL.revokeObjectURL(url);toast('Data backup downloaded ✓')}
 function restoreBackup(ev){if(isViewer()){ev.target.value='';return toast('Editing is available after admin login')}const file=ev.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported.daily||!imported.branches)throw new Error('Invalid file');db=imported;role=auth.token?'editor':'viewer';saveDB();initSessionFromDate();renderAll();toast('Data backup restored ✓')}catch(e){toast('Restore failed: please choose a valid backup file')}};reader.readAsText(file);ev.target.value=''}
-
 document.getElementById('datechip').textContent=todayLbl();
 (async function startDashboard(){
   initSessionFromDate();updateModeUI();renderSummary();
