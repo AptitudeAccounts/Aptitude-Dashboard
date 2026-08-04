@@ -180,6 +180,7 @@ let session={};
 let auth=loadAuth();
 let cloudReady=false;
 let lastSyncAt=null;
+let lastSyncError=null;
 let syncTimer=null;
 function sanitizeId(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('branch_'+Date.now())}
 function today(){return new Date().toISOString().split('T')[0]}
@@ -289,6 +290,14 @@ function getPublicDataJsonp(){
     setTimeout(()=>{if(window[cb]){cleanup();reject(new Error('Public data request timed out'))}},15000);
   });
 }
+async function getPublicDataDirect(){
+  if(!scriptConfigured())throw new Error('Google Sheet is not connected yet');
+  const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
+  const res=await fetch(GOOGLE_SCRIPT_URL+sep+'action=getPublicData&ts='+Date.now());
+  const data=await res.json();
+  if(!data||!data.ok)throw new Error((data&&data.error)||'Public data request failed');
+  return data;
+}
 async function loginAdmin(){
   try{
     const username=document.getElementById('loginUser').value.trim();
@@ -298,19 +307,29 @@ async function loginAdmin(){
     auth={token:data.token,username:data.username,role:data.role,expiresAt:data.expiresAt};saveAuth();
     role='editor'; closeLogin();
     if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly()}
+    cloudReady=true;lastSyncAt=new Date();lastSyncError=null;
     initSessionFromDate(); renderAll(); toast('Admin login successful ✓');
   }catch(e){toast('Login failed: '+e.message)}
 }
 function logoutAdmin(){clearAuth();role='viewer';renderAll();toast('Logged out. Editing is now locked.')}
 async function refreshFromCloud(silent=false){
   if(!scriptConfigured()){cloudReady=false;updateModeUI();return}
+  const attempts=[];
   try{
     let data;
-    try{data=await getPublicDataJsonp()}
-    catch(jsonpErr){data=await api('getPublicData',{})}
-    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly();cloudReady=true;lastSyncAt=new Date();initSessionFromDate();renderAll()}
+    try{data=await getPublicDataDirect()}
+    catch(directErr){
+      attempts.push('direct: '+(directErr&&directErr.message||directErr));
+      try{data=await getPublicDataJsonp()}
+      catch(jsonpErr){
+        attempts.push('jsonp: '+(jsonpErr&&jsonpErr.message||jsonpErr));
+        try{data=await api('getPublicData',{})}
+        catch(postErr){attempts.push('post: '+(postErr&&postErr.message||postErr));throw postErr}
+      }
+    }
+    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly();cloudReady=true;lastSyncAt=new Date();lastSyncError=null;initSessionFromDate();renderAll()}
     if(!silent)toast('Records loaded from Google Sheet ✓');
-  }catch(e){cloudReady=false;updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
+  }catch(e){cloudReady=false;lastSyncError=attempts.length?attempts.join(' | '):(e&&e.message||String(e));updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
 }
 async function validateSavedLogin(){
   if(!auth.token){role='viewer';return}
@@ -318,14 +337,15 @@ async function validateSavedLogin(){
     const data=await api('validate',{});
     role=data.role==='admin'||data.role==='editor'?'editor':'viewer';
     if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly()}
+    cloudReady=true;lastSyncAt=new Date();lastSyncError=null;
   }catch(e){clearAuth();role='viewer'}
 }
 function queueCloudSync(){
   if(!scriptConfigured()||isViewer()||!auth.token)return;
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
-    try{await api('saveFullDB',{db});cloudReady=true;lastSyncAt=new Date();updateModeUI()}
-    catch(e){toast('Google Sheet sync failed: '+e.message);cloudReady=false;updateModeUI()}
+    try{await api('saveFullDB',{db});cloudReady=true;lastSyncAt=new Date();lastSyncError=null;updateModeUI()}
+    catch(e){toast('Google Sheet sync failed: '+e.message);cloudReady=false;lastSyncError='save: '+(e&&e.message||e);updateModeUI()}
   },700);
 }
 function updateModeUI(){
@@ -353,7 +373,7 @@ function updateSyncStatusUI(){
     chip.style.cssText='background:var(--red-bg);color:var(--red);border-color:#FECACA;font-weight:600';
     if(banner){
       banner.style.display='block';
-      banner.innerHTML=`<b>⚠ Not connected to the shared Google Sheet.</b> Anything you enter right now is only being saved in <u>this browser</u> — it will not show up on other devices, other browsers, or a freshly-opened copy of this file until sync is restored. Check your internet connection, or that the Google Apps Script link in this dashboard is still valid, then re-open this page.`;
+      banner.innerHTML=`<b>⚠ Not connected to the shared Google Sheet.</b> Anything you enter right now is only being saved in <u>this browser</u> — it will not show up on other devices, other browsers, or a freshly-opened copy of this file until sync is restored.${lastSyncError?`<div style="margin-top:6px;font-family:'DM Mono',monospace;font-size:11px;color:#7A1E1E;word-break:break-word">Details: ${lastSyncError}</div>`:''}`;
     }
   }
 }
@@ -1208,6 +1228,35 @@ function renderEventGroups(groupDates,groups){
     </div>`;
   }).join('');
 }
+function renderEventNameGroups(events){
+  const groups={};
+  events.forEach(e=>{const key=(e.name||'').trim()||'(Unnamed event)';if(!groups[key])groups[key]=[];groups[key].push(e)});
+  const names=Object.keys(groups).sort((a,z)=>{
+    const latest=arr=>arr.reduce((m,e)=>{const dt=normalizeDateKeyClient(e.date)||e.date||'';return dt>m?dt:m},'');
+    return latest(groups[z]).localeCompare(latest(groups[a]));
+  });
+  if(!names.length)return '';
+  return `<div class="section-lbl">Events by name</div>`+names.map(name=>{
+    const evs=groups[name].slice().sort((a,z)=>{const da=normalizeDateKeyClient(a.date)||a.date||'',dz=normalizeDateKeyClient(z.date)||z.date||'';return dz.localeCompare(da)});
+    const totalGross=evs.reduce((s,e)=>s+(e.gross||0),0),totalCommission=evs.reduce((s,e)=>s+(e.commission||0),0),totalNet=totalGross-totalCommission;
+    const totalReceivable=evs.reduce((s,e)=>s+eventArInfo(e).receivable,0);
+    const rows=evs.map(e=>{
+      const net=(e.gross||0)-(e.commission||0),ar=eventArInfo(e);
+      return `<tr><td>${dateLbl(e.date)}</td><td>${e.organizer||'—'}</td><td>${fmtN(e.gross)}</td><td>${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td>${e.notes?`<td style="text-align:left;white-space:normal;color:var(--muted)">${e.notes}</td>`:'<td></td>'}${isEditor()?`<td><button class="btn" style="padding:4px 10px;flex:0;display:inline-block;width:auto" onclick="editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="deleteEvent('${e.id}')" title="Delete">✕</button></td>`:''}</tr>`;
+    }).join('');
+    return `<div class="card">
+      <div class="card-header"><div><div class="card-title">${name}</div><div class="card-sub">${evs.length} occurrence${evs.length!==1?'s':''} — most recent ${dateLbl(evs[0].date)}${totalReceivable>0.05?` · ${fmt(totalReceivable)} receivable`:''}</div></div><div class="metrics" style="margin:0;grid-template-columns:repeat(3,auto);gap:16px"><div class="metric" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Total gross</div><div class="mv" style="font-size:15px">${fmtN(totalGross)}</div></div><div class="metric amber" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Commission</div><div class="mv" style="font-size:15px">${fmtN(totalCommission)}</div></div><div class="metric green" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Net</div><div class="mv" style="font-size:15px">${fmtN(totalNet)}</div></div></div></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Organizer</th><th>Gross</th><th>Commission</th><th>Net</th><th>AR status</th><th>Notes</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+  }).join('');
+}
+function renderEventsMasterTable(events){
+  const sorted=events.slice().sort((a,z)=>{const da=normalizeDateKeyClient(a.date)||a.date||'',dz=normalizeDateKeyClient(z.date)||z.date||'';return dz.localeCompare(da)});
+  const rows=sorted.map(e=>{const net=(e.gross||0)-(e.commission||0),ar=eventArInfo(e);return `<tr><td class="name">${e.name}</td><td>${dateLbl(e.date)}</td><td>${e.organizer||'—'}</td><td>${fmtN(e.gross)}</td><td>${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td>${isEditor()?`<td><button class="btn" style="padding:4px 10px;flex:0;display:inline-block;width:auto" onclick="editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="deleteEvent('${e.id}')" title="Delete">✕</button></td>`:''}</tr>`}).join('');
+  const totals=events.reduce((s,e)=>{s.gross+=e.gross||0;s.commission+=e.commission||0;return s},{gross:0,commission:0});
+  totals.net=totals.gross-totals.commission;
+  return `<div class="section-lbl">All events — full record, date-wise</div><div class="card"><div class="card-header"><div><div class="card-title">All events</div><div class="card-sub">${events.length} event${events.length!==1?'s':''}, most recent first</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Date</th><th>Organizer</th><th>Gross sales</th><th>Commission</th><th>Net</th><th>AR status</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${isEditor()?8:7}" style="text-align:center;color:var(--hint)">No events recorded.</td></tr>`}</tbody>${events.length?`<tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td>${fmtN(totals.gross)}</td><td>${fmtN(totals.commission)}</td><td>${fmtN(totals.net)}</td><td></td>${isEditor()?'<td></td>':''}</tr></tfoot>`:''}</table></div></div>`;
+}
 function renderEvents(){
   const el=document.getElementById('view-events'),disabled=isViewer()?'disabled':'';
   let needsResave=false;
@@ -1243,7 +1292,7 @@ function renderEvents(){
     :`<div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${eventsFilterFrom}" onchange="setEventsFilter('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${eventsFilterTo}" onchange="setEventsFilter('to',this.value)"></div><div class="fld"><label>Search event / organizer</label><input value="${eventsSearchTerm}" onchange="setEventsSearch(this.value)" placeholder="e.g. Mubadala — press Enter"></div><div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearEventsFilter()">Clear filter</button></div></div>`;
   el.innerHTML=formHtml+modeBtns+filterUi+`
   <div class="metrics"><div class="metric"><div class="ml">Events shown</div><div class="mv">${filtered.length}</div><div class="ms">of ${all.length} total on record, across ${groupDates.length} date${groupDates.length!==1?'s':''}</div></div><div class="metric blue"><div class="ml">Total event sales</div><div class="mv">${fmtN(totals.gross)}</div></div><div class="metric amber"><div class="ml">Total commission paid</div><div class="mv">${fmtN(totals.commission)}</div></div><div class="metric green"><div class="ml">Net after commission</div><div class="mv">${fmtN(totals.net)}</div></div><div class="metric ${totals.receivable>0.05?'red':'green'}"><div class="ml">Receivable outstanding</div><div class="mv">${fmtN(totals.receivable)}</div><div class="ms">Not yet received from organizers</div></div></div>
-  ${groupDates.length?renderEventGroups(groupDates,groups):`<div class="empty">${eventsMode==='single'?`No events recorded for ${dateLbl(eventsSingleDate)}.`:`No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.`}</div>`}`;
+  ${filtered.length?(eventsMode==='single'?renderEventGroups(groupDates,groups):renderEventNameGroups(filtered)+renderEventsMasterTable(filtered)):`<div class="empty">${eventsMode==='single'?`No events recorded for ${dateLbl(eventsSingleDate)}.`:`No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.`}</div>`}`;
 }
 function branchDailyRows(dayData,t){
   return branches().map(b=>{
@@ -1340,7 +1389,7 @@ document.getElementById('datechip').textContent=todayLbl();
 (async function startDashboard(){
   initSessionFromDate();updateModeUI();renderSummary();
   await validateSavedLogin();
-  if(scriptConfigured()) await refreshFromCloud(true);
+  if(scriptConfigured()&&!cloudReady) await refreshFromCloud(true);
   initSessionFromDate();renderAll();
 })();
 </script>
