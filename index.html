@@ -104,8 +104,10 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
         <label class="btn" style="flex:0;padding:7px 12px;cursor:pointer" title="For admin use: restores dashboard data from a backup file">Restore Data Backup<input type="file" accept="application/json" style="display:none" onchange="restoreBackup(event)"></label>
       </span>
       <span class="date-chip" id="datechip"></span>
+      <span class="sync-chip" id="syncChip">Cloud sync: checking…</span>
     </div>
   </div>
+  <div id="syncWarningBanner" class="danger-box" style="display:none;margin-bottom:16px"></div>
   <div class="nav">
     <button class="nav-btn" onclick="showView('entry')" id="nb-entry">Daily entry</button>
     <button class="nav-btn active" onclick="showView('summary')" id="nb-summary">Today's summary</button>
@@ -177,6 +179,7 @@ let breakevenMode='monthly',breakevenSelectedDay=today();
 let session={};
 let auth=loadAuth();
 let cloudReady=false;
+let lastSyncAt=null;
 let syncTimer=null;
 function sanitizeId(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('branch_'+Date.now())}
 function today(){return new Date().toISOString().split('T')[0]}
@@ -305,7 +308,7 @@ async function refreshFromCloud(silent=false){
     let data;
     try{data=await getPublicDataJsonp()}
     catch(jsonpErr){data=await api('getPublicData',{})}
-    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly();cloudReady=true;initSessionFromDate();renderAll()}
+    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly();cloudReady=true;lastSyncAt=new Date();initSessionFromDate();renderAll()}
     if(!silent)toast('Records loaded from Google Sheet ✓');
   }catch(e){cloudReady=false;updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
 }
@@ -321,7 +324,7 @@ function queueCloudSync(){
   if(!scriptConfigured()||isViewer()||!auth.token)return;
   clearTimeout(syncTimer);
   syncTimer=setTimeout(async()=>{
-    try{await api('saveFullDB',{db});cloudReady=true;updateModeUI()}
+    try{await api('saveFullDB',{db});cloudReady=true;lastSyncAt=new Date();updateModeUI()}
     catch(e){toast('Google Sheet sync failed: '+e.message);cloudReady=false;updateModeUI()}
   },700);
 }
@@ -329,6 +332,30 @@ function updateModeUI(){
   const tools=document.getElementById('dataBackupTools');if(tools)tools.style.display=isViewer()?'none':'flex';
   const lb=document.getElementById('loginBtn');if(lb)lb.style.display=isViewer()?'inline-block':'none';
   const lo=document.getElementById('logoutBtn');if(lo)lo.style.display=isEditor()?'inline-block':'none';
+  updateSyncStatusUI();
+}
+function updateSyncStatusUI(){
+  const chip=document.getElementById('syncChip'),banner=document.getElementById('syncWarningBanner');
+  if(!chip)return;
+  const syncedLbl=lastSyncAt?lastSyncAt.toLocaleTimeString('en-AE',{hour:'2-digit',minute:'2-digit'}):null;
+  if(!scriptConfigured()){
+    chip.textContent='Cloud sync: not set up';
+    chip.style.cssText='';
+    if(banner)banner.style.display='none';
+    return;
+  }
+  if(cloudReady){
+    chip.textContent='☁ Cloud sync: connected'+(syncedLbl?(' · '+syncedLbl):'');
+    chip.style.cssText='background:var(--green-bg);color:var(--green);border-color:#BBF7D0;font-weight:600';
+    if(banner)banner.style.display='none';
+  }else{
+    chip.textContent='⚠ Cloud sync: offline — saving to this device only';
+    chip.style.cssText='background:var(--red-bg);color:var(--red);border-color:#FECACA;font-weight:600';
+    if(banner){
+      banner.style.display='block';
+      banner.innerHTML=`<b>⚠ Not connected to the shared Google Sheet.</b> Anything you enter right now is only being saved in <u>this browser</u> — it will not show up on other devices, other browsers, or a freshly-opened copy of this file until sync is restored. Check your internet connection, or that the Google Apps Script link in this dashboard is still valid, then re-open this page.`;
+    }
+  }
 }
 function initSessionFromDate(){
   session={}; branches().forEach(b=>session[b.id]=ensureEntryShape(db.daily[entryDate]?.[b.id]));
