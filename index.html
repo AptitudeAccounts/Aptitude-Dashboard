@@ -201,8 +201,28 @@ function migrateBranches(d){
   DEFAULT_BRANCHES.forEach(db_=>{if(!d.branches.some(b=>b.id===db_.id))d.branches.push({...db_})});
   return d;
 }
+function migrateEvents(d){
+  if(!d||!Array.isArray(d.events))return d;
+  d.events=d.events.map(e=>({...e,date:normalizeDateKeyClient(e.date)||e.date||today()}));
+  return d;
+}
+function normalizeDailyKeys(d){
+  if(!d||!d.daily)return d;
+  const nd={};
+  Object.keys(d.daily).forEach(k=>{
+    const nk=normalizeDateKeyClient(k);
+    if(!nk)return;
+    if(!nd[nk])nd[nk]={};
+    Object.assign(nd[nk],d.daily[k]||{});
+  });
+  d.daily=nd;
+  return d;
+}
+function normalizeDb(d){
+  return migrateEvents(migrateBranches(normalizeDailyKeys(d)));
+}
 function loadDB(){
-  try{const raw=localStorage.getItem(KEY);if(raw)return migrateBranches(JSON.parse(raw))}catch(e){}
+  try{const raw=localStorage.getItem(KEY);if(raw)return normalizeDb(JSON.parse(raw))}catch(e){}
   const fresh={version:STORAGE_VERSION,branches:DEFAULT_BRANCHES,daily:{},budgets:{},role:'editor'};
   try{
     const old=localStorage.getItem(OLD_KEY);
@@ -213,6 +233,7 @@ function loadDB(){
       })});
     }
   }catch(e){}
+  normalizeDb(fresh);
   localStorage.setItem(KEY,JSON.stringify(fresh));
   return fresh;
 }
@@ -249,15 +270,7 @@ function normalizeDateKeyClient(v){
 }
 function normalizeLoadedDb(incoming){
   if(!incoming)return incoming;
-  const nd={};
-  Object.keys(incoming.daily||{}).forEach(k=>{
-    const nk=normalizeDateKeyClient(k);
-    if(!nk)return;
-    if(!nd[nk])nd[nk]={};
-    Object.assign(nd[nk],incoming.daily[k]||{});
-  });
-  incoming.daily=nd;
-  return migrateBranches(incoming);
+  return normalizeDb(incoming);
 }
 function getPublicDataJsonp(){
   return new Promise((resolve,reject)=>{
@@ -454,6 +467,38 @@ function ytdFilters(){
 }
 function getYears(){const ys=new Set([new Date().getFullYear()]);Object.keys(db.daily).forEach(d=>ys.add(parseInt(d.substring(0,4))));Object.keys(db.budgets||{}).forEach(k=>ys.add(parseInt(k.substring(0,4))));return [...ys].filter(Boolean).sort((a,b)=>b-a)}
 function ratio(n,d){return d?((n/d)*100).toFixed(1)+'%':'—'}
+/* ============ Link Events into Today's Summary / MTD / YTD totals ============ */
+function inMtdPeriod(dateStr){
+  if(mtdMode==='range')return dateStr>=mtdRangeFrom&&dateStr<=mtdRangeTo;
+  const mp=selectedMonth||today().substring(0,7);
+  return dateStr.startsWith(mp);
+}
+function inYtdPeriod(dateStr){
+  if(ytdMode==='range')return dateStr>=ytdRangeFrom&&dateStr<=ytdRangeTo;
+  const yp=String(selectedYear),limit=(selectedYear===new Date().getFullYear()?today():yp+'-12-31');
+  return dateStr.startsWith(yp)&&dateStr<=limit;
+}
+function eventsTotalsForPredicate(pred){
+  const evs=(db.events||[]).filter(e=>pred(normalizeDateKeyClient(e.date)||e.date||''));
+  const t={gross:0,commission:0,receivable:0,count:evs.length};
+  evs.forEach(e=>{t.gross+=e.gross||0;t.commission+=e.commission||0;t.receivable+=eventArInfo(e).receivable;});
+  t.net=t.gross-t.commission;
+  return t;
+}
+function eventsTotalsForDays(days){const daySet=new Set(days);return eventsTotalsForPredicate(dt=>daySet.has(dt))}
+function renderCombinedTotalsCard(t,eventsT,prefix){
+  const grand=(t.gross||0)+(eventsT.gross||0);
+  return `<div class="card"><div class="card-header"><div><div class="card-title">${prefix} — all sales (Branches + Events)</div><div class="card-sub">Combines the branch totals above with event sales recorded for this period</div></div></div><div class="metrics" style="margin-bottom:0"><div class="metric"><div class="ml">Branch sales</div><div class="mv">${fmtN(t.gross)}</div><div class="ms">${branches().length} branches</div></div><div class="metric amber"><div class="ml">Event sales</div><div class="mv">${fmtN(eventsT.gross)}</div><div class="ms">${eventsT.count} event${eventsT.count!==1?'s':''}</div></div><div class="metric green"><div class="ml">Grand total</div><div class="mv">${fmtN(grand)}</div><div class="ms">All sales, this period</div></div>${eventsT.receivable>0.05?`<div class="metric red"><div class="ml">Events receivable</div><div class="mv">${fmtN(eventsT.receivable)}</div><div class="ms">Not yet received from organizers</div></div>`:''}</div></div>`;
+}
+function renderEventsForPeriodCard(pred,periodLabel){
+  const evs=(db.events||[]).filter(e=>pred(normalizeDateKeyClient(e.date)||e.date||''));
+  if(!evs.length)return '';
+  const groups={};
+  evs.forEach(e=>{const dt=normalizeDateKeyClient(e.date)||e.date;if(!groups[dt])groups[dt]=[];groups[dt].push(e)});
+  const groupDates=Object.keys(groups).sort((a,z)=>z.localeCompare(a));
+  return `<div class="section-lbl">${periodLabel} events</div>`+renderEventGroups(groupDates,groups);
+}
+/* ============ End Events linking ============ */
 /* ============ Executive Commentary Engine (CEO Briefing) ============ */
 function shiftMonthKey(mk,delta){const [y,m]=mk.split('-').map(Number);const d=new Date(y,m-1+delta,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function monthKeyLabel(mk){return monthName(mk)+' '+mk.split('-')[0]}
@@ -596,10 +641,11 @@ function renderBranchTable(agg,t,title,subtitle,cmp=null){
   return `<div class="card"><div class="card-header"><div class="card-title">${title}</div><div class="card-sub">${subtitle}</div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Gross</th><th>Ex. VAT</th><th>COGS</th><th>Gross profit</th><th>GP %</th><th>Discounts</th><th>Covers</th><th>Txn/Days</th><th>Share</th>${wowHeader}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td>${fmtN(t.gross)}</td><td>${fmtN(t.exv)}</td><td>${fmtN(t.costOfSales)}</td><td>${fmtN(t.grossProfit)}</td><td>${ratio(t.grossProfit,t.exv)}</td><td>${fmtN(t.discounts)}</td><td>${t.covers}</td><td>${t.transactions}</td><td>100%</td>${wowFooter}</tr></tfoot></table></div></div>`}
 function renderBars(agg,t,title){const bars=branches().slice().sort((a,z)=>(agg[z.id]?.gross||0)-(agg[a.id]?.gross||0)).filter(b=>(agg[b.id]?.gross||0)>0).map(b=>{const pctv=t.gross>0?(agg[b.id].gross/t.gross*100):0;return `<div class="bar-row"><div class="bar-lbl">${b.name}</div><div class="bar-track"><div class="bar-fill" style="width:${pctv.toFixed(1)}%;background:${b.color}"></div></div><div class="bar-val">${fmt(agg[b.id].gross)}</div></div>`}).join('')||'<div class="empty">No branch sales to show.</div>';return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="bar-section">${bars}</div></div>`}
 function renderSummary(){
-  const d=selectedDay||today(),days=db.daily[d]?[d]:[],agg=aggregate(days),t=totalsFromAgg(agg),el=document.getElementById('view-summary'),lbl=dateLbl(d);
-  if(!days.length||t.gross<=0){el.innerHTML=reportFilters('day')+`<div class="empty"><div>No data saved for ${lbl}.</div><div style="margin-top:6px;font-size:12px">Select another date, or ask an admin to save Daily Entry data for this date.</div></div>`;return}
-  const lastWeekDate=shiftDate(d,-7),lastWeekDays=db.daily[lastWeekDate]?[lastWeekDate]:[],lastAgg=aggregate(lastWeekDays),lastT=totalsFromAgg(lastAgg);
-  el.innerHTML=reportFilters('day')+renderMetricBlock(t,'Daily',lbl)+renderReportCharts(agg,t,days,'Daily')+renderRatioAnalysis(t,'Daily ratio analysis')+renderBranchTable(agg,t,'Branch breakdown',lbl,{agg:lastAgg,t:lastT})+renderBars(agg,t,'Sales contribution');
+  const d=selectedDay||today(),days=[d],agg=aggregate(days),t=totalsFromAgg(agg),el=document.getElementById('view-summary'),lbl=dateLbl(d);
+  const eventsT=eventsTotalsForDays(days);
+  if(t.gross<=0&&!eventsT.count){el.innerHTML=reportFilters('day')+`<div class="empty"><div>No data saved for ${lbl}.</div><div style="margin-top:6px;font-size:12px">Select another date, or ask an admin to save Daily Entry data for this date.</div></div>`;return}
+  const lastWeekDate=shiftDate(d,-7),lastWeekDays=[lastWeekDate],lastAgg=aggregate(lastWeekDays),lastT=totalsFromAgg(lastAgg);
+  el.innerHTML=reportFilters('day')+renderMetricBlock(t,'Daily',lbl)+renderCombinedTotalsCard(t,eventsT,'Daily')+renderReportCharts(agg,t,days,'Daily')+renderRatioAnalysis(t,'Daily ratio analysis')+renderBranchTable(agg,t,'Branch breakdown',lbl,{agg:lastAgg,t:lastT})+renderBars(agg,t,'Sales contribution')+renderEventsForPeriodCard(dt=>dt===d,'Daily');
 }
 function getMtdCommentary(days){
   const momDays=priorComparablePeriod(days);
@@ -625,7 +671,14 @@ function getMtdCommentary(days){
   }
   return items;
 }
-function renderMTD(){const el=document.getElementById('view-mtd'),days=mtdDays();if(!days.length){el.innerHTML=mtdFilters()+'<div class="empty">No data for this selection yet.</div>';return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=mtdLabel(),ttl=mtdMode==='range'?'Selected range':'MTD';const commentaryItems=getMtdCommentary(days);el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
+function renderMTD(){
+  const el=document.getElementById('view-mtd'),days=mtdDays();
+  const eventsT=eventsTotalsForPredicate(inMtdPeriod);
+  if(!days.length&&!eventsT.count){el.innerHTML=mtdFilters()+'<div class="empty">No data for this selection yet.</div>';return}
+  const agg=aggregate(days),t=totalsFromAgg(agg),lbl=mtdLabel(),ttl=mtdMode==='range'?'Selected range':'MTD';
+  const commentaryItems=getMtdCommentary(days);
+  el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsForPeriodCard(inMtdPeriod,ttl);
+}
 function buildTotalSalesYtdCommentary(days){
   const items=[];
   const agg=aggregate(days),t=totalsFromAgg(agg);
@@ -656,7 +709,14 @@ function getYtdCommentary(days){
   }
   return buildTotalSalesYtdCommentary(days);
 }
-function renderYTD(){const el=document.getElementById('view-ytd'),days=ytdDays();if(!days.length){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';const commentaryItems=getYtdCommentary(days);el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')}
+function renderYTD(){
+  const el=document.getElementById('view-ytd'),days=ytdDays();
+  const eventsT=eventsTotalsForPredicate(inYtdPeriod);
+  if(!days.length&&!eventsT.count){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}
+  const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';
+  const commentaryItems=getYtdCommentary(days);
+  el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsForPeriodCard(inYtdPeriod,ttl);
+}
 /* ============ Executive Analysis (lifetime / month-over-month, since YoY history isn't available yet) ============ */
 function monthlyAggregates(){
   const months=[...new Set(Object.keys(db.daily).map(d=>d.slice(0,7)))].sort();
@@ -1036,7 +1096,7 @@ function editEvent(id){
   const ev=(db.events||[]).find(e=>e.id===id);
   if(!ev)return;
   editingEventId=id;
-  eventForm={...blankEvent(),...ev};
+  eventForm={...blankEvent(),...ev,date:normalizeDateKeyClient(ev.date)||ev.date||today()};
   renderEvents();
 }
 function eventArInfo(e){
@@ -1077,7 +1137,8 @@ function saveEvent(){
   if(isViewer())return toast('Editing is available after admin login');
   if(!eventForm.name||!eventForm.name.trim())return toast('Enter an event name');
   if(!db.events)db.events=[];
-  const savedDate=eventForm.date||today();
+  const savedDate=normalizeDateKeyClient(eventForm.date)||eventForm.date||today();
+  eventForm.date=savedDate;
   if(editingEventId){
     const idx=db.events.findIndex(e=>e.id===editingEventId);
     if(idx>-1)db.events[idx]={...eventForm,id:editingEventId,updatedAt:new Date().toISOString()};
@@ -1122,10 +1183,13 @@ function renderEventGroups(groupDates,groups){
 }
 function renderEvents(){
   const el=document.getElementById('view-events'),disabled=isViewer()?'disabled':'';
+  let needsResave=false;
+  (db.events||[]).forEach(e=>{const nk=normalizeDateKeyClient(e.date);if(nk&&nk!==e.date){e.date=nk;needsResave=true}});
+  if(needsResave)saveDBLocalOnly();
   const all=(db.events||[]).slice().sort((a,z)=>(z.date||'').localeCompare(a.date||''));
   const term=(eventsSearchTerm||'').toLowerCase().trim();
   const filtered=eventsMode==='single'
-    ?all.filter(e=>e.date===eventsSingleDate)
+    ?all.filter(e=>normalizeDateKeyClient(e.date)===eventsSingleDate)
     :all.filter(e=>(!eventsFilterFrom||e.date>=eventsFilterFrom)&&(!eventsFilterTo||e.date<=eventsFilterTo)&&(!term||(e.name||'').toLowerCase().includes(term)||(e.organizer||'').toLowerCase().includes(term)));
   const exV=(eventForm.gross||0)/1.05,vatA=(eventForm.gross||0)-exV;
   const formAr=eventArInfo(eventForm);
@@ -1184,8 +1248,10 @@ function buildDailySummaryReport(d){
   const branchMini=topBranches.map(b=>{const val=agg[b.id]?.gross||0,h=Math.max(4,val/maxBranch*120);return `<div style="flex:1"><div class="report-mini-bar" style="height:${h}px;background:${b.color}"></div><div class="report-mini-bar-label">${b.name.split(' ')[0]}</div></div>`}).join('');
   const gpPct=t.exv?t.grossProfit/t.exv*100:0,cogsPct=t.gross?t.costOfSales/t.gross*100:0,discPct=t.gross?t.discounts/t.gross*100:0;
   const weekVar=t.gross-lastT.gross,weekPct=lastT.gross?weekVar/lastT.gross*100:0;
+  const eventsT=eventsTotalsForDays([d]);
   return `<div class="report-page">
     <div class="report-head"><div><div class="report-title">Daily Sales Summary <span class="report-badge">All Branches</span></div><div style="font-size:12px;color:#E0ECFF">Aptitude &amp; Slice45 management report</div></div><div class="report-meta"><div><b>Report date:</b> ${dateLbl(d)}</div><div><b>Generated:</b> ${todayLbl()}</div><div><b>Currency:</b> AED</div></div></div>
+    ${eventsT.count?`<div class="report-kpis" style="grid-template-columns:1fr 1fr 1fr"><div class="report-kpi"><div class="label">Branch sales</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi amber"><div class="label">Event sales (${eventsT.count})</div><div class="value">${fmtN(eventsT.gross)}</div></div><div class="report-kpi green"><div class="label">Grand total</div><div class="value">${fmtN(t.gross+eventsT.gross)}</div></div></div>`:''}
     <div class="report-kpis"><div class="report-kpi"><div class="label">Gross incl. VAT</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi"><div class="label">Sales ex. VAT</div><div class="value">${fmtN(t.exv)}</div></div><div class="report-kpi amber"><div class="label">VAT</div><div class="value">${fmtN(t.vat)}</div></div><div class="report-kpi red"><div class="label">COGS</div><div class="value">${fmtN(t.costOfSales)}</div></div><div class="report-kpi green"><div class="label">Gross profit</div><div class="value">${fmtN(t.grossProfit)}</div></div><div class="report-kpi"><div class="label">Customers / Txn</div><div class="value">${t.covers} / ${t.transactions}</div></div></div>
     <div class="report-grid-2"><div class="report-card"><div class="report-section-title">Sales contribution by branch</div><div class="report-bars">${bars}</div></div><div class="report-card"><div class="report-section-title">Ratio analysis</div><div class="report-ratios"><div class="report-ratio"><div class="label">Gross margin</div><div class="value">${ratio(t.grossProfit,t.exv)}</div></div><div class="report-ratio"><div class="label">COGS / Gross</div><div class="value">${ratio(t.costOfSales,t.gross)}</div></div><div class="report-ratio"><div class="label">Discount / Gross</div><div class="value">${ratio(t.discounts,t.gross)}</div></div><div class="report-ratio"><div class="label">Vs last week</div><div class="value" style="color:${weekVar>=0?'#16A34A':'#DC2626'}">${lastT.gross?weekPct.toFixed(1)+'%':'—'}</div></div></div></div></div>
     <div class="report-section-title">Management visuals</div><div class="report-visual-grid"><div class="report-mini-card"><div class="report-mini-title">Revenue mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#2563EB 0 ${revFood}%, #16A34A ${revFood}% ${revFood+revBev}%, #D97706 ${revFood+revBev}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#2563EB"></i>Food ${revFood.toFixed(1)}%</span><span><i class="report-swatch" style="background:#16A34A"></i>Beverages ${revBev.toFixed(1)}%</span><span><i class="report-swatch" style="background:#D97706"></i>Retail ${revRetail.toFixed(1)}%</span></div></div><div class="report-small-note">Auto-calculated from gross sales.</div></div><div class="report-mini-card"><div class="report-mini-title">Payment mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#16A34A 0 ${payCash}%, #2563EB ${payCash}% ${payCash+payCard}%, #0D9488 ${payCash+payCard}% ${payCash+payCard+payBank}%, #EA580C ${payCash+payCard+payBank}% ${payCash+payCard+payBank+payTalabat}%, #00CCBC ${payCash+payCard+payBank+payTalabat}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#16A34A"></i>Qlub ${payCash.toFixed(1)}%</span><span><i class="report-swatch" style="background:#2563EB"></i>Cards ${payCard.toFixed(1)}%</span><span><i class="report-swatch" style="background:#0D9488"></i>Bank ${payBank.toFixed(1)}%</span><span><i class="report-swatch" style="background:#EA580C"></i>Talabat ${payTalabat.toFixed(1)}%</span><span><i class="report-swatch" style="background:#00CCBC"></i>Deliveroo ${payDeliveroo.toFixed(1)}%</span></div></div><div class="report-small-note">Payment receipt split.</div></div><div class="report-mini-card"><div class="report-mini-title">Top branch sales</div><div class="report-mini-bars">${branchMini}</div></div><div class="report-mini-card"><div class="report-mini-title">Margin dashboard</div><div class="report-mini-row"><div class="report-mini-row-top"><span>Gross margin</span><b>${gpPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(gpPct,100)}%;background:#16A34A"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>COGS / gross</span><b>${cogsPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(cogsPct,100)}%;background:#D97706"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>Discount / gross</span><b>${discPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(discPct,100)}%;background:#DC2626"></div></div></div></div></div>
@@ -1205,9 +1271,11 @@ function buildRangeReport(days,label,periodTitle,commentaryItems=[]){
   const branchMini=topBranches.map(b=>{const val=agg[b.id]?.gross||0,h=Math.max(4,val/maxBranch*120);return `<div style="flex:1"><div class="report-mini-bar" style="height:${h}px;background:${b.color}"></div><div class="report-mini-bar-label">${b.name.split(' ')[0]}</div></div>`}).join('');
   const gpPct=t.exv?t.grossProfit/t.exv*100:0,cogsPct=t.gross?t.costOfSales/t.gross*100:0,discPct=t.gross?t.discounts/t.gross*100:0;
   const branchFinRows=branches().map(b=>{const m=agg[b.id]||blankEntry(),share=t.gross>0?(m.gross/t.gross*100).toFixed(1):'0.0',exv=m.gross/1.05,gp=exv-(m.costOfSales||0);return `<tr><td class="name">${b.name}</td><td>${fmtN(m.gross)}</td><td>${fmtN(exv)}</td><td>${fmtN(m.costOfSales||0)}</td><td>${fmtN(gp)}</td><td>${ratio(gp,exv)}</td><td>${m.covers}</td><td>${share}%</td></tr>`}).join('');
+  const eventsT=eventsTotalsForDays(days);
   return `<div class="report-page">
     <div class="report-head"><div><div class="report-title">${periodTitle} <span class="report-badge">All Branches</span></div><div style="font-size:12px;color:#E0ECFF">Aptitude &amp; Slice45 management report</div></div><div class="report-meta"><div><b>Period:</b> ${label}</div><div><b>Days recorded:</b> ${days.length}</div><div><b>Generated:</b> ${todayLbl()}</div><div><b>Currency:</b> AED</div></div></div>
     <div class="report-kpis"><div class="report-kpi"><div class="label">Gross incl. VAT</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi"><div class="label">Sales ex. VAT</div><div class="value">${fmtN(t.exv)}</div></div><div class="report-kpi amber"><div class="label">VAT</div><div class="value">${fmtN(t.vat)}</div></div><div class="report-kpi red"><div class="label">COGS</div><div class="value">${fmtN(t.costOfSales)}</div></div><div class="report-kpi green"><div class="label">Gross profit</div><div class="value">${fmtN(t.grossProfit)}</div></div><div class="report-kpi"><div class="label">Customers / Txn</div><div class="value">${t.covers} / ${t.transactions}</div></div></div>
+    ${eventsT.count?`<div class="report-kpis" style="grid-template-columns:1fr 1fr 1fr"><div class="report-kpi"><div class="label">Branch sales</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi amber"><div class="label">Event sales (${eventsT.count})</div><div class="value">${fmtN(eventsT.gross)}</div></div><div class="report-kpi green"><div class="label">Grand total</div><div class="value">${fmtN(t.gross+eventsT.gross)}</div></div></div>`:''}
     ${renderReportCommentary(commentaryItems)}
     <div class="report-grid-2"><div class="report-card"><div class="report-section-title">Sales contribution by branch</div><div class="report-bars">${bars}</div></div><div class="report-card"><div class="report-section-title">Ratio analysis</div><div class="report-ratios"><div class="report-ratio"><div class="label">Gross margin</div><div class="value">${ratio(t.grossProfit,t.exv)}</div></div><div class="report-ratio"><div class="label">COGS / Gross</div><div class="value">${ratio(t.costOfSales,t.gross)}</div></div><div class="report-ratio"><div class="label">Discount / Gross</div><div class="value">${ratio(t.discounts,t.gross)}</div></div><div class="report-ratio"><div class="label">Avg per day</div><div class="value">${days.length?fmtN(t.gross/days.length):'—'}</div></div></div></div></div>
     <div class="report-section-title">Management visuals</div><div class="report-visual-grid"><div class="report-mini-card"><div class="report-mini-title">Revenue mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#2563EB 0 ${revFood}%, #16A34A ${revFood}% ${revFood+revBev}%, #D97706 ${revFood+revBev}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#2563EB"></i>Food ${revFood.toFixed(1)}%</span><span><i class="report-swatch" style="background:#16A34A"></i>Beverages ${revBev.toFixed(1)}%</span><span><i class="report-swatch" style="background:#D97706"></i>Retail ${revRetail.toFixed(1)}%</span></div></div><div class="report-small-note">Auto-calculated from gross sales.</div></div><div class="report-mini-card"><div class="report-mini-title">Payment mix</div><div class="report-donut-wrap"><div class="report-donut" style="background:conic-gradient(#16A34A 0 ${payCash}%, #2563EB ${payCash}% ${payCash+payCard}%, #0D9488 ${payCash+payCard}% ${payCash+payCard+payBank}%, #EA580C ${payCash+payCard+payBank}% ${payCash+payCard+payBank+payTalabat}%, #00CCBC ${payCash+payCard+payBank+payTalabat}% 100%)"></div><div class="report-legend"><span><i class="report-swatch" style="background:#16A34A"></i>Qlub ${payCash.toFixed(1)}%</span><span><i class="report-swatch" style="background:#2563EB"></i>Cards ${payCard.toFixed(1)}%</span><span><i class="report-swatch" style="background:#0D9488"></i>Bank ${payBank.toFixed(1)}%</span><span><i class="report-swatch" style="background:#EA580C"></i>Talabat ${payTalabat.toFixed(1)}%</span><span><i class="report-swatch" style="background:#00CCBC"></i>Deliveroo ${payDeliveroo.toFixed(1)}%</span></div></div><div class="report-small-note">Payment receipt split.</div></div><div class="report-mini-card"><div class="report-mini-title">Top branch sales</div><div class="report-mini-bars">${branchMini}</div></div><div class="report-mini-card"><div class="report-mini-title">Margin dashboard</div><div class="report-mini-row"><div class="report-mini-row-top"><span>Gross margin</span><b>${gpPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(gpPct,100)}%;background:#16A34A"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>COGS / gross</span><b>${cogsPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(cogsPct,100)}%;background:#D97706"></div></div></div><div class="report-mini-row"><div class="report-mini-row-top"><span>Discount / gross</span><b>${discPct.toFixed(1)}%</b></div><div class="report-mini-track"><div class="report-mini-fill" style="width:${Math.min(discPct,100)}%;background:#DC2626"></div></div></div></div></div>
@@ -1240,7 +1308,7 @@ function exportPDF(){
   setTimeout(cleanup,1200);
 }
 function downloadBackup(){if(isViewer())return toast('Editing is available after admin login');const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='aptitude-dashboard-data-backup-'+today()+'.json';a.click();URL.revokeObjectURL(url);toast('Data backup downloaded ✓')}
-function restoreBackup(ev){if(isViewer()){ev.target.value='';return toast('Editing is available after admin login')}const file=ev.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported.daily||!imported.branches)throw new Error('Invalid file');db=imported;role=auth.token?'editor':'viewer';saveDB();initSessionFromDate();renderAll();toast('Data backup restored ✓')}catch(e){toast('Restore failed: please choose a valid backup file')}};reader.readAsText(file);ev.target.value=''}
+function restoreBackup(ev){if(isViewer()){ev.target.value='';return toast('Editing is available after admin login')}const file=ev.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported.daily||!imported.branches)throw new Error('Invalid file');db=normalizeDb(imported);role=auth.token?'editor':'viewer';saveDB();initSessionFromDate();renderAll();toast('Data backup restored ✓')}catch(e){toast('Restore failed: please choose a valid backup file')}};reader.readAsText(file);ev.target.value=''}
 document.getElementById('datechip').textContent=todayLbl();
 (async function startDashboard(){
   initSessionFromDate();updateModeUI();renderSummary();
