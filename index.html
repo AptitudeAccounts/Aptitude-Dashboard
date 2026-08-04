@@ -173,6 +173,7 @@ let db=loadDB();
 let activeB=0,curView='summary',entryDate=today(),selectedDay=today(),selectedMonth=today().substring(0,7),selectedYear=new Date().getFullYear(),role='viewer';
 let mtdMode='month',mtdRangeFrom=today().substring(0,8)+'01',mtdRangeTo=today();
 let ytdMode='year',ytdRangeFrom=today().substring(0,4)+'-01-01',ytdRangeTo=today();
+let breakevenMode='monthly',breakevenSelectedDay=today();
 let session={};
 let auth=loadAuth();
 let cloudReady=false;
@@ -941,11 +942,55 @@ function buildBreakevenReport(monthKey){
   </div>`;
 }
 /* ============ End ARC Al Nahyan branch-scoped helpers ============ */
+function setBreakevenMode(m){breakevenMode=m;renderBreakeven()}
+function setBreakevenDay(v){breakevenSelectedDay=v||today();renderBreakeven()}
+function renderBranchDayCharts(t){
+  return `<div class="chart-grid">${renderDonutCard('Revenue mix',[{label:'Food',value:t.food,color:'var(--blue)'},{label:'Beverage',value:t.bev,color:'var(--green)'},{label:'Retail',value:t.retail,color:'var(--amber)'}],'Automatic split: Food 75%, Beverages 20%, Retail 5% of gross')}${renderDonutCard('Payment mix',[{label:'Qlub',value:t.cash,color:'var(--green)'},{label:'Cards',value:t.card,color:'var(--blue)'},{label:'Bank transfer',value:t.bank,color:'var(--teal)'},{label:'Talabat',value:t.talabat,color:'#EA580C'},{label:'Deliveroo',value:t.deliveroo,color:'#00CCBC'}],'Gross payment split')}</div>`;
+}
+function renderBreakevenDailyView(day){
+  const label=branchById(DELIVERY_BRANCH_ID).name;
+  const hasData=!!(db.daily[day]&&db.daily[day][DELIVERY_BRANCH_ID]&&db.daily[day][DELIVERY_BRANCH_ID].gross>0);
+  if(!hasData){
+    return `<div class="empty"><div>No ${label} data saved for ${dateLbl(day)}.</div><div style="margin-top:6px;font-size:12px">Pick another date, or save a Daily Entry record for ${label} on this date.</div></div>`;
+  }
+  const t=branchAggTotals([day],DELIVERY_BRANCH_ID);
+  const lastWeekDay=shiftDate(day,-7),lastT=branchAggTotals([lastWeekDay],DELIVERY_BRANCH_ID);
+  const ordersNow=(t.talabatOrders||0)+(t.deliverooOrders||0);
+  const dod=branchDayOverDayBullet(DELIVERY_BRANCH_ID,label);
+  return renderMetricBlock(t,label,dateLbl(day))
+    +renderCommentaryCard(dod?[dod]:[],'ARC Al Nahyan — Auto Commentary','Day-over-day comparison for the most recently recorded days')
+    +`<div class="card"><div class="card-header"><div><div class="card-title">${label} — Talabat &amp; Deliveroo breakdown</div><div class="card-sub">${dateLbl(day)}</div></div></div><div class="ratio-grid"><div class="ratio-card"><div class="rl">Talabat orders</div><div class="rv">${fmtN(t.talabatOrders||0)}</div><div class="rs">${fmtN(t.talabat||0)} AED</div></div><div class="ratio-card"><div class="rl">Deliveroo orders</div><div class="rv">${fmtN(t.deliverooOrders||0)}</div><div class="rs">${fmtN(t.deliveroo||0)} AED</div></div><div class="ratio-card"><div class="rl">Total delivery orders</div><div class="rv">${fmtN(ordersNow)}</div><div class="rs">Talabat + Deliveroo</div></div><div class="ratio-card"><div class="rl">Vs same day last week</div><div class="rv">${lastT.gross>0?ratio(t.gross-lastT.gross,lastT.gross):'—'}</div><div class="rs">${dateLbl(lastWeekDay)}: ${fmtN(lastT.gross)}</div></div></div></div>`
+    +renderRatioAnalysis(t,label+' — daily ratio analysis')
+    +renderBranchDayCharts(t);
+}
+function buildBreakevenDailyReport(day){
+  const label=branchById(DELIVERY_BRANCH_ID).name;
+  const hasData=!!(db.daily[day]&&db.daily[day][DELIVERY_BRANCH_ID]&&db.daily[day][DELIVERY_BRANCH_ID].gross>0);
+  const t=branchAggTotals([day],DELIVERY_BRANCH_ID);
+  const ordersNow=(t.talabatOrders||0)+(t.deliverooOrders||0);
+  const gpPct=t.exv?(t.grossProfit/t.exv*100):0;
+  const dod=branchDayOverDayBullet(DELIVERY_BRANCH_ID,label);
+  return `<div class="report-page">
+    <div class="report-head"><div><div class="report-title">${label} — Daily Performance <span class="report-badge">Daily view</span></div><div style="font-size:12px;color:#E0ECFF">Aptitude &amp; Slice45 management report</div></div><div class="report-meta"><div><b>Date:</b> ${dateLbl(day)}</div><div><b>Generated:</b> ${todayLbl()}</div><div><b>Currency:</b> AED</div></div></div>
+    ${hasData?`<div class="report-kpis"><div class="report-kpi"><div class="label">Gross incl. VAT</div><div class="value">${fmtN(t.gross)}</div></div><div class="report-kpi"><div class="label">Sales ex. VAT</div><div class="value">${fmtN(t.exv)}</div></div><div class="report-kpi red"><div class="label">COGS</div><div class="value">${fmtN(t.costOfSales)}</div></div><div class="report-kpi green"><div class="label">Gross profit</div><div class="value">${fmtN(t.grossProfit)}</div></div><div class="report-kpi"><div class="label">GP %</div><div class="value">${gpPct.toFixed(1)}%</div></div><div class="report-kpi amber"><div class="label">Delivery orders</div><div class="value">${fmtN(ordersNow)}</div></div></div>
+    ${renderReportCommentary(dod?[dod]:[])}
+    <div class="report-section-title">Talabat &amp; Deliveroo breakdown</div>
+    <div class="report-ratios"><div class="report-ratio"><div class="label">Talabat orders</div><div class="value">${fmtN(t.talabatOrders||0)}</div></div><div class="report-ratio"><div class="label">Talabat sales</div><div class="value">${fmtN(t.talabat||0)}</div></div><div class="report-ratio"><div class="label">Deliveroo orders</div><div class="value">${fmtN(t.deliverooOrders||0)}</div></div><div class="report-ratio"><div class="label">Deliveroo sales</div><div class="value">${fmtN(t.deliveroo||0)}</div></div></div>`:`<div class="report-card"><div class="report-section-title">No data</div><div class="report-small-note">No ${label} Daily Entry record was saved for this date.</div></div>`}
+    <div class="report-foot"><span>Prepared from Daily Entry records for ${label}.</span><span>Page 1 of 1</span></div>
+  </div>`;
+}
 function renderBreakeven(){
   const el=document.getElementById('view-breakeven');
   const b=branchById(DELIVERY_BRANCH_ID);
   const branchExists=db.branches.some(x=>x.id===DELIVERY_BRANCH_ID);
   if(!branchExists){el.innerHTML='<div class="empty">ARC Al Nahyan branch not found.</div>';return}
+  const modeBtns=`<div class="btabs"><button class="btab ${breakevenMode==='monthly'?'active':''}" onclick="setBreakevenMode('monthly')">Monthly break-even</button><button class="btab ${breakevenMode==='daily'?'active':''}" onclick="setBreakevenMode('daily')">Daily view</button></div>`;
+  if(breakevenMode==='daily'){
+    el.innerHTML=modeBtns
+      +`<div class="inline-filters"><div class="fld"><label>Report date</label><input type="date" value="${breakevenSelectedDay}" onchange="setBreakevenDay(this.value)"></div></div>`
+      +renderBreakevenDailyView(breakevenSelectedDay);
+    return;
+  }
   const k=breakevenKey(),be=getBreakeven(k);
   const days=Object.keys(db.daily).filter(d=>d.startsWith(k)).sort();
   const branchT=branchAggTotals(days,DELIVERY_BRANCH_ID);
@@ -955,7 +1000,7 @@ function renderBreakeven(){
   const editableOrders=isEditor()?`<input type="number" min="0" step="1" value="${be.orders||''}" onchange="updateBreakevenValue('orders',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:right">`:fmtN(be.orders);
   const editableSales=isEditor()?`<input type="number" min="0" step="0.01" value="${be.sales||''}" onchange="updateBreakevenValue('sales',this.value)" style="width:120px;padding:6px;border:1px solid var(--border);border-radius:6px;text-align:right">`:fmtN(be.sales);
   const commentaryItems=getBreakevenCommentary(k,days);
-  el.innerHTML=`<div class="inline-filters">${monthPicker('breakeven')}</div>
+  el.innerHTML=modeBtns+`<div class="inline-filters">${monthPicker('breakeven')}</div>
   <div class="card"><div class="card-header"><div><div class="card-title">${b.name} — Full branch performance</div><div class="card-sub">${days.length} recorded days — ${monthName(k)} ${k.split('-')[0]}. All figures below are pulled automatically from Daily Entry for this branch, not just Today's Summary.</div></div></div></div>
   ${renderMetricBlock(branchT,b.name,monthName(k)+' '+k.split('-')[0])}
   ${renderCommentaryCard(commentaryItems,'ARC Al Nahyan — Auto Commentary','Auto-generated day-over-day and month-over-month commentary, including break-even pacing')}
@@ -984,6 +1029,7 @@ function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,ca
 let eventForm=blankEvent();
 let editingEventId=null;
 let eventsFilterFrom='',eventsFilterTo='',eventsSearchTerm='';
+let eventsMode='all',eventsSingleDate=today();
 function newEventForm(dateOverride){if(isViewer())return;editingEventId=null;eventForm=blankEvent();if(dateOverride)eventForm.date=dateOverride;renderEvents()}
 function editEvent(id){
   if(isViewer())return;
@@ -1057,6 +1103,8 @@ function deleteEvent(id){
 function setEventsFilter(which,v){if(which==='from')eventsFilterFrom=v;else eventsFilterTo=v;renderEvents()}
 function setEventsSearch(v){eventsSearchTerm=v;renderEvents()}
 function clearEventsFilter(){eventsFilterFrom='';eventsFilterTo='';eventsSearchTerm='';renderEvents()}
+function setEventsMode(m){eventsMode=m;renderEvents()}
+function setEventsSingleDate(v){eventsSingleDate=v||today();renderEvents()}
 function renderEventGroups(groupDates,groups){
   return groupDates.map(dt=>{
     const evs=groups[dt];
@@ -1076,7 +1124,9 @@ function renderEvents(){
   const el=document.getElementById('view-events'),disabled=isViewer()?'disabled':'';
   const all=(db.events||[]).slice().sort((a,z)=>(z.date||'').localeCompare(a.date||''));
   const term=(eventsSearchTerm||'').toLowerCase().trim();
-  const filtered=all.filter(e=>(!eventsFilterFrom||e.date>=eventsFilterFrom)&&(!eventsFilterTo||e.date<=eventsFilterTo)&&(!term||(e.name||'').toLowerCase().includes(term)||(e.organizer||'').toLowerCase().includes(term)));
+  const filtered=eventsMode==='single'
+    ?all.filter(e=>e.date===eventsSingleDate)
+    :all.filter(e=>(!eventsFilterFrom||e.date>=eventsFilterFrom)&&(!eventsFilterTo||e.date<=eventsFilterTo)&&(!term||(e.name||'').toLowerCase().includes(term)||(e.organizer||'').toLowerCase().includes(term)));
   const exV=(eventForm.gross||0)/1.05,vatA=(eventForm.gross||0)-exV;
   const formAr=eventArInfo(eventForm);
   const netAfterCommission=(eventForm.gross||0)-(eventForm.commission||0);
@@ -1096,10 +1146,13 @@ function renderEvents(){
   const groups={};
   filtered.forEach(e=>{const dt=e.date||'unknown';if(!groups[dt])groups[dt]=[];groups[dt].push(e)});
   const groupDates=Object.keys(groups).sort((a,z)=>z.localeCompare(a));
-  el.innerHTML=formHtml+`
-  <div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${eventsFilterFrom}" onchange="setEventsFilter('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${eventsFilterTo}" onchange="setEventsFilter('to',this.value)"></div><div class="fld"><label>Search event / organizer</label><input value="${eventsSearchTerm}" onchange="setEventsSearch(this.value)" placeholder="e.g. Mubadala — press Enter"></div><div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearEventsFilter()">Clear filter</button></div></div>
+  const modeBtns=`<div class="btabs"><button class="btab ${eventsMode==='all'?'active':''}" onclick="setEventsMode('all')">All events</button><button class="btab ${eventsMode==='single'?'active':''}" onclick="setEventsMode('single')">Single date</button></div>`;
+  const filterUi=eventsMode==='single'
+    ?`<div class="inline-filters"><div class="fld"><label>Date</label><input type="date" value="${eventsSingleDate}" onchange="setEventsSingleDate(this.value)"></div>${isEditor()?`<div class="fld"><label>&nbsp;</label><button class="btn" onclick="newEventForm('${eventsSingleDate}')">+ Add event for this date</button></div>`:''}</div>`
+    :`<div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${eventsFilterFrom}" onchange="setEventsFilter('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${eventsFilterTo}" onchange="setEventsFilter('to',this.value)"></div><div class="fld"><label>Search event / organizer</label><input value="${eventsSearchTerm}" onchange="setEventsSearch(this.value)" placeholder="e.g. Mubadala — press Enter"></div><div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearEventsFilter()">Clear filter</button></div></div>`;
+  el.innerHTML=formHtml+modeBtns+filterUi+`
   <div class="metrics"><div class="metric"><div class="ml">Events shown</div><div class="mv">${filtered.length}</div><div class="ms">of ${all.length} total on record, across ${groupDates.length} date${groupDates.length!==1?'s':''}</div></div><div class="metric blue"><div class="ml">Total event sales</div><div class="mv">${fmtN(totals.gross)}</div></div><div class="metric amber"><div class="ml">Total commission paid</div><div class="mv">${fmtN(totals.commission)}</div></div><div class="metric green"><div class="ml">Net after commission</div><div class="mv">${fmtN(totals.net)}</div></div><div class="metric ${totals.receivable>0.05?'red':'green'}"><div class="ml">Receivable outstanding</div><div class="mv">${fmtN(totals.receivable)}</div><div class="ms">Not yet received from organizers</div></div></div>
-  ${groupDates.length?renderEventGroups(groupDates,groups):`<div class="empty">No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.</div>`}`;
+  ${groupDates.length?renderEventGroups(groupDates,groups):`<div class="empty">${eventsMode==='single'?`No events recorded for ${dateLbl(eventsSingleDate)}.`:`No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.`}</div>`}`;
 }
 function branchDailyRows(dayData,t){
   return branches().map(b=>{
@@ -1175,7 +1228,7 @@ function exportPDF(){
       target.innerHTML=buildRangeReport(aDays,'Since '+dateLbl(aDays[0]),'Executive Analysis Report',buildAnalysisCommentary());
     }
   }else if(curView==='breakeven'){
-    target.innerHTML=buildBreakevenReport(breakevenKey());
+    target.innerHTML=breakevenMode==='daily'?buildBreakevenDailyReport(breakevenSelectedDay):buildBreakevenReport(breakevenKey());
   }else{
     const reportDate=(curView==='entry'?entryDate:(selectedDay||today()));
     target.innerHTML=buildDailySummaryReport(reportDate);
