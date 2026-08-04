@@ -1134,6 +1134,11 @@ function renderBreakeven(){
 }
 function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,cash:0,visa:0,master:0,bank:0,commission:0,notes:''}}
 let eventForm=blankEvent();
+let expandedEventNames=new Set();
+function toggleEventGroup(name){
+  if(expandedEventNames.has(name))expandedEventNames.delete(name);else expandedEventNames.add(name);
+  renderEvents();
+}
 let editingEventId=null;
 let eventsFilterFrom='',eventsFilterTo='',eventsSearchTerm='';
 let eventsMode='all',eventsSingleDate=today();
@@ -1163,6 +1168,13 @@ function updEventField(f,v){
   if(isViewer())return;
   if(f==='name'||f==='date'||f==='organizer'||f==='notes')eventForm[f]=v;
   else eventForm[f]=parseFloat(v)||0;
+  if(f==='name'){
+    const match=(db.events||[]).slice().reverse().find(e=>(e.name||'').trim().toLowerCase()===String(v).trim().toLowerCase());
+    if(match){
+      if(!eventForm.organizer){eventForm.organizer=match.organizer||'';setValue('event-organizer-input',eventForm.organizer)}
+      if(!eventForm.notes&&match.notes){eventForm.notes=match.notes;setValue('event-notes-input',eventForm.notes)}
+    }
+  }
   updateLiveEventForm();
 }
 function updateLiveEventForm(){
@@ -1236,26 +1248,28 @@ function renderEventNameGroups(events){
     return latest(groups[z]).localeCompare(latest(groups[a]));
   });
   if(!names.length)return '';
-  return `<div class="section-lbl">Events by name</div>`+names.map(name=>{
+  const rows=names.map(name=>{
     const evs=groups[name].slice().sort((a,z)=>{const da=normalizeDateKeyClient(a.date)||a.date||'',dz=normalizeDateKeyClient(z.date)||z.date||'';return dz.localeCompare(da)});
     const totalGross=evs.reduce((s,e)=>s+(e.gross||0),0),totalCommission=evs.reduce((s,e)=>s+(e.commission||0),0),totalNet=totalGross-totalCommission;
     const totalReceivable=evs.reduce((s,e)=>s+eventArInfo(e).receivable,0);
-    const rows=evs.map(e=>{
+    const expanded=expandedEventNames.has(name);
+    const nameCellId='evtname_'+name.replace(/[^a-zA-Z0-9]/g,'_');
+    const summaryRow=`<tr id="${nameCellId}" style="cursor:pointer" onclick="toggleEventGroup('${name.replace(/'/g,"\\'")}')"><td class="name"><span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;transition:transform .15s;transform:rotate(${expanded?90:0}deg);color:var(--hint);font-size:10px">▶</span>${name}</span></td><td>${evs.length}</td><td>${fmtN(totalGross)}</td><td>${fmtN(totalCommission)}</td><td class="${totalNet>=0?'pos':'neg'}">${fmtN(totalNet)}</td><td>${totalReceivable>0.05?arBadge('receivable',totalReceivable):arBadge('received',0)}</td></tr>`;
+    if(!expanded)return summaryRow;
+    const detailRows=evs.map(e=>{
       const net=(e.gross||0)-(e.commission||0),ar=eventArInfo(e);
-      return `<tr><td>${dateLbl(e.date)}</td><td>${e.organizer||'—'}</td><td>${fmtN(e.gross)}</td><td>${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td>${e.notes?`<td style="text-align:left;white-space:normal;color:var(--muted)">${e.notes}</td>`:'<td></td>'}${isEditor()?`<td><button class="btn" style="padding:4px 10px;flex:0;display:inline-block;width:auto" onclick="editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="deleteEvent('${e.id}')" title="Delete">✕</button></td>`:''}</tr>`;
+      return `<tr style="background:var(--bg)"><td class="name" style="padding-left:28px;font-weight:400;font-size:11px">${dateLbl(e.date)}</td><td style="font-size:11px">${e.organizer||'—'}</td><td style="font-size:11px">${fmtN(e.gross)}</td><td style="font-size:11px">${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}" style="font-size:11px">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td>${isEditor()?`<td><button class="btn" style="padding:3px 8px;flex:0;display:inline-block;width:auto;font-size:11px" onclick="event.stopPropagation();editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="event.stopPropagation();deleteEvent('${e.id}')" title="Delete">✕</button></td>`:'<td></td>'}</tr>`;
     }).join('');
-    return `<div class="card">
-      <div class="card-header"><div><div class="card-title">${name}</div><div class="card-sub">${evs.length} occurrence${evs.length!==1?'s':''} — most recent ${dateLbl(evs[0].date)}${totalReceivable>0.05?` · ${fmt(totalReceivable)} receivable`:''}</div></div><div class="metrics" style="margin:0;grid-template-columns:repeat(3,auto);gap:16px"><div class="metric" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Total gross</div><div class="mv" style="font-size:15px">${fmtN(totalGross)}</div></div><div class="metric amber" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Commission</div><div class="mv" style="font-size:15px">${fmtN(totalCommission)}</div></div><div class="metric green" style="padding:6px 12px;box-shadow:none;border:none;background:transparent"><div class="ml">Net</div><div class="mv" style="font-size:15px">${fmtN(totalNet)}</div></div></div></div>
-      <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Organizer</th><th>Gross</th><th>Commission</th><th>Net</th><th>AR status</th><th>Notes</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows}</tbody></table></div>
-    </div>`;
+    return summaryRow+detailRows;
   }).join('');
+  return `<div class="section-lbl">Summary — totals by event (click a row for the full report)</div><div class="card"><div class="card-header"><div><div class="card-title">Events, one row each</div><div class="card-sub">${names.length} unique event name${names.length!==1?'s':''}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Occurrences</th><th>Total sale</th><th>Total commission</th><th>Net</th><th>AR status</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
 function renderEventsMasterTable(events){
   const sorted=events.slice().sort((a,z)=>{const da=normalizeDateKeyClient(a.date)||a.date||'',dz=normalizeDateKeyClient(z.date)||z.date||'';return dz.localeCompare(da)});
   const rows=sorted.map(e=>{const net=(e.gross||0)-(e.commission||0),ar=eventArInfo(e);return `<tr><td class="name">${e.name}</td><td>${dateLbl(e.date)}</td><td>${e.organizer||'—'}</td><td>${fmtN(e.gross)}</td><td>${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td>${isEditor()?`<td><button class="btn" style="padding:4px 10px;flex:0;display:inline-block;width:auto" onclick="editEvent('${e.id}')">Edit</button> <button class="del-btn" onclick="deleteEvent('${e.id}')" title="Delete">✕</button></td>`:''}</tr>`}).join('');
   const totals=events.reduce((s,e)=>{s.gross+=e.gross||0;s.commission+=e.commission||0;return s},{gross:0,commission:0});
   totals.net=totals.gross-totals.commission;
-  return `<div class="section-lbl">All events — full record, date-wise</div><div class="card"><div class="card-header"><div><div class="card-title">All events</div><div class="card-sub">${events.length} event${events.length!==1?'s':''}, most recent first</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Date</th><th>Organizer</th><th>Gross sales</th><th>Commission</th><th>Net</th><th>AR status</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${isEditor()?8:7}" style="text-align:center;color:var(--hint)">No events recorded.</td></tr>`}</tbody>${events.length?`<tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td>${fmtN(totals.gross)}</td><td>${fmtN(totals.commission)}</td><td>${fmtN(totals.net)}</td><td></td>${isEditor()?'<td></td>':''}</tr></tfoot>`:''}</table></div></div>`;
+  return `<div class="section-lbl">Events — Daily Sale</div><div class="card"><div class="card-header"><div><div class="card-title">All events, date-wise</div><div class="card-sub">${events.length} event${events.length!==1?'s':''}, most recent first</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Date</th><th>Organizer</th><th>Gross sales</th><th>Commission</th><th>Net</th><th>AR status</th>${isEditor()?'<th>Actions</th>':''}</tr></thead><tbody>${rows||`<tr><td colspan="${isEditor()?8:7}" style="text-align:center;color:var(--hint)">No events recorded.</td></tr>`}</tbody>${events.length?`<tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td>${fmtN(totals.gross)}</td><td>${fmtN(totals.commission)}</td><td>${fmtN(totals.net)}</td><td></td>${isEditor()?'<td></td>':''}</tr></tfoot>`:''}</table></div></div>`;
 }
 function renderEvents(){
   const el=document.getElementById('view-events'),disabled=isViewer()?'disabled':'';
@@ -1272,13 +1286,13 @@ function renderEvents(){
   const netAfterCommission=(eventForm.gross||0)-(eventForm.commission||0);
   const formHtml=isEditor()?`<div class="card">
     <div class="card-header"><div><div class="card-title">${editingEventId?'Edit event':'Add new event'}</div><div class="card-sub">${editingEventId?'Updating a saved event record':'Enter details for a new event — supports 100+ events, including several on the same date'}</div></div>${editingEventId?`<button class="btn" style="flex:0;padding:6px 12px" onclick="newEventForm()">+ New event</button>`:''}</div>
-    <div class="grid-2"><div class="fld"><label>Event name</label><input value="${eventForm.name||''}" oninput="updEventField('name',this.value)" placeholder="e.g. Mubadala Event"></div><div class="fld"><label>Event date</label><input type="date" value="${eventForm.date||today()}" onchange="updEventField('date',this.value)"></div></div>
-    <div class="grid-2" style="margin-top:10px"><div class="fld"><label>Organizer</label><input value="${eventForm.organizer||''}" oninput="updEventField('organizer',this.value)" placeholder="Organizer name"></div><div class="fld"><label>Gross sales incl. 5% VAT (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.gross||''}" oninput="updEventField('gross',this.value)"></div></div>
+    <div class="grid-2"><div class="fld"><label>Event name</label><input id="event-name-input" list="eventNameList" value="${eventForm.name||''}" oninput="updEventField('name',this.value)" placeholder="e.g. Mubadala Event"><datalist id="eventNameList">${[...new Set(all.map(e=>e.name).filter(Boolean))].map(n=>`<option value="${n}">`).join('')}</datalist></div><div class="fld"><label>Event date</label><input type="date" value="${eventForm.date||today()}" onchange="updEventField('date',this.value)"></div></div>
+    <div class="grid-2" style="margin-top:10px"><div class="fld"><label>Organizer</label><input id="event-organizer-input" value="${eventForm.organizer||''}" oninput="updEventField('organizer',this.value)" placeholder="Organizer name"></div><div class="fld"><label>Gross sales incl. 5% VAT (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.gross||''}" oninput="updEventField('gross',this.value)"></div></div>
     <div class="calc-strip"><div class="ci"><div class="cl">Ex. VAT</div><div class="cv" id="event-exv">${fmtN(exV)}</div></div><div class="ci"><div class="cl">VAT 5%</div><div class="cv blue" id="event-vat">${fmtN(vatA)}</div></div><div class="ci"><div class="cl">Commission</div><div class="cv" id="event-commission-display" style="color:var(--amber)">${fmtN(eventForm.commission||0)}</div></div><div class="ci"><div class="cl">Net after commission</div><div class="cv green" id="event-net">${fmtN(netAfterCommission)}</div></div></div>
     <div class="section-lbl">Payment breakdown — what's actually been received</div><div class="grid-4"><div class="fld"><label>Qlub (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.cash||''}" oninput="updEventField('cash',this.value)"></div><div class="fld"><label>Visa (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.visa||''}" oninput="updEventField('visa',this.value)"></div><div class="fld"><label>Mastercard (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.master||''}" oninput="updEventField('master',this.value)"></div><div class="fld"><label>Bank transfer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.bank||''}" oninput="updEventField('bank',this.value)"></div></div>
     <div id="event-pay-status">${!eventForm.gross?'':(formAr.status==='received'?`<div class="ok-box">✓ Fully received — payment breakdown matches gross sales.</div>`:`<div class="warn-box">⚠ AED ${fmtN(formAr.receivable)} still receivable from the organizer — payment breakdown (${fmtN(formAr.payT)}) is short of gross (${fmtN(eventForm.gross)}). Update this once payment is received to close it out.</div>`)}</div>
     <div class="small-note">Leave Qlub/Visa/Mastercard/Bank at 0 (or partial) if the organizer hasn't paid yet — the event will show as Receivable until you come back and fill in the amount actually received.</div>
-    <div class="section-lbl">Commission &amp; notes</div><div class="grid-2"><div class="fld"><label>Commission paid to organizer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.commission||''}" oninput="updEventField('commission',this.value)"></div><div class="fld"><label>Notes</label><input value="${eventForm.notes||''}" oninput="updEventField('notes',this.value)" placeholder="Optional"></div></div>
+    <div class="section-lbl">Commission &amp; notes</div><div class="grid-2"><div class="fld"><label>Commission paid to organizer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.commission||''}" oninput="updEventField('commission',this.value)"></div><div class="fld"><label>Notes</label><input id="event-notes-input" value="${eventForm.notes||''}" oninput="updEventField('notes',this.value)" placeholder="Optional"></div></div>
     <div class="btn-row"><button class="btn" onclick="newEventForm()">Clear</button><button class="btn primary" onclick="saveEvent()">${editingEventId?'Update event':'Save event'}</button></div>
   </div>`:'';
   const totals=filtered.reduce((s,e)=>{s.gross+=e.gross||0;s.commission+=e.commission||0;s.receivable+=eventArInfo(e).receivable;return s},{gross:0,commission:0,receivable:0});
@@ -1292,7 +1306,7 @@ function renderEvents(){
     :`<div class="inline-filters"><div class="fld"><label>From</label><input type="date" value="${eventsFilterFrom}" onchange="setEventsFilter('from',this.value)"></div><div class="fld"><label>To</label><input type="date" value="${eventsFilterTo}" onchange="setEventsFilter('to',this.value)"></div><div class="fld"><label>Search event / organizer</label><input value="${eventsSearchTerm}" onchange="setEventsSearch(this.value)" placeholder="e.g. Mubadala — press Enter"></div><div class="fld"><label>&nbsp;</label><button class="btn" onclick="clearEventsFilter()">Clear filter</button></div></div>`;
   el.innerHTML=formHtml+modeBtns+filterUi+`
   <div class="metrics"><div class="metric"><div class="ml">Events shown</div><div class="mv">${filtered.length}</div><div class="ms">of ${all.length} total on record, across ${groupDates.length} date${groupDates.length!==1?'s':''}</div></div><div class="metric blue"><div class="ml">Total event sales</div><div class="mv">${fmtN(totals.gross)}</div></div><div class="metric amber"><div class="ml">Total commission paid</div><div class="mv">${fmtN(totals.commission)}</div></div><div class="metric green"><div class="ml">Net after commission</div><div class="mv">${fmtN(totals.net)}</div></div><div class="metric ${totals.receivable>0.05?'red':'green'}"><div class="ml">Receivable outstanding</div><div class="mv">${fmtN(totals.receivable)}</div><div class="ms">Not yet received from organizers</div></div></div>
-  ${filtered.length?(eventsMode==='single'?renderEventGroups(groupDates,groups):renderEventNameGroups(filtered)+renderEventsMasterTable(filtered)):`<div class="empty">${eventsMode==='single'?`No events recorded for ${dateLbl(eventsSingleDate)}.`:`No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.`}</div>`}`;
+  ${filtered.length?(eventsMode==='single'?renderEventGroups(groupDates,groups):renderEventsMasterTable(filtered)+renderEventNameGroups(filtered)):`<div class="empty">${eventsMode==='single'?`No events recorded for ${dateLbl(eventsSingleDate)}.`:`No events recorded${eventsFilterFrom||eventsFilterTo||term?' matching this filter':''}.`}</div>`}`;
 }
 function branchDailyRows(dayData,t){
   return branches().map(b=>{
