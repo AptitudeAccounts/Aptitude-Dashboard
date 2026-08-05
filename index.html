@@ -96,7 +96,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   <div class="header">
     <div class="header-left"><h1>Daily Sales Dashboard</h1><p>Aptitude &amp; Slice45 — All Branches</p></div>
     <div class="top-tools">
-      <button class="btn" id="loginBtn" style="flex:0;padding:7px 12px" onclick="openLogin()">Admin Login</button>
+      <button class="btn" id="loginBtn" style="flex:0;padding:7px 12px" onclick="openLogin()">Unlock Editing</button>
       <button class="btn" id="logoutBtn" style="flex:0;padding:7px 12px;display:none" onclick="logoutAdmin()">Logout</button>
       <button class="btn primary" style="flex:0;padding:7px 12px" onclick="exportPDF()">Export PDF Report</button>
       <span id="dataBackupTools" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -137,15 +137,14 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
 <div id="dailyPdfReport"></div>
 <div class="login-panel" id="loginPanel">
   <div class="login-card">
-    <h2>Admin Login</h2>
-    <p>Only authorized admin users can enter, change, or delete dashboard records.</p>
-    <div class="fld"><label>Username or email</label><input id="loginUser" autocomplete="username" placeholder="admin@example.com"></div>
-    <div class="fld" style="margin-top:10px"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="Password"></div>
+    <h2>Unlock Editing</h2>
+    <p>Enter the shared edit password to add, change, or delete dashboard records. This is checked directly against your Google Sheet — no separate account needed.</p>
+    <div class="fld"><label>Edit password</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')loginAdmin()"></div>
     <div class="btn-row">
       <button class="btn" onclick="closeLogin()">Cancel</button>
-      <button class="btn primary" onclick="loginAdmin()">Login</button>
+      <button class="btn primary" onclick="loginAdmin()">Unlock</button>
     </div>
-    <div class="small-note">Public visitors can view the dashboard. Editing is activated only after admin login.</div>
+    <div class="small-note">Public visitors can view the dashboard. Editing is activated only after entering the password.</div>
   </div>
 </div>
 <div class="toast-wrap"><div class="toast" id="toast"></div></div>
@@ -169,7 +168,7 @@ const DELIVERY_BRANCH_ID='arc_al_nahyan';
   3) Example: const GOOGLE_SCRIPT_URL='https://script.google.com/macros/s/XXXXX/exec';
 */
 const GOOGLE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwxQQw_rS86Ev1d8X2s9lghtQqfdg5qZDAAlCqu9a6gjobvBuzEaBNHJTskt8t7NyuURg/exec';
-const AUTH_KEY='aptslice_admin_session_v1';
+const PASS_KEY='aptslice_edit_password_v1';
 const blankEntry=()=>({gross:0,food:0,bev:0,retail:0,costOfSales:0,cash:0,visa:0,master:0,bank:0,talabat:0,deliveroo:0,talabatOrders:0,deliverooOrders:0,discounts:0,takeawayCustomers:0,takeawaySales:0,covers:0,dineInSales:0,thirdPartyCustomers:0,thirdPartySales:0,transactions:0,saved:false});
 let db=loadDB();
 let activeB=0,curView='summary',entryDate=today(),selectedDay=today(),selectedMonth=today().substring(0,7),selectedYear=new Date().getFullYear(),role='viewer';
@@ -177,11 +176,10 @@ let mtdMode='month',mtdRangeFrom=today().substring(0,8)+'01',mtdRangeTo=today();
 let ytdMode='year',ytdRangeFrom=today().substring(0,4)+'-01-01',ytdRangeTo=today();
 let breakevenMode='monthly',breakevenSelectedDay=today();
 let session={};
-let auth=loadAuth();
+let editPassword=localStorage.getItem(PASS_KEY)||'';
 let cloudReady=false;
 let lastSyncAt=null;
 let lastSyncError=null;
-let syncTimer=null;
 function sanitizeId(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||('branch_'+Date.now())}
 function today(){return new Date().toISOString().split('T')[0]}
 function todayLbl(){return new Date().toLocaleDateString('en-AE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
@@ -242,18 +240,21 @@ function loadDB(){
   return fresh;
 }
 function scriptConfigured(){return GOOGLE_SCRIPT_URL && !GOOGLE_SCRIPT_URL.includes('PASTE_YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL_HERE')}
-function saveDB(){localStorage.setItem(KEY,JSON.stringify(db));queueCloudSync()}
+function saveDB(){localStorage.setItem(KEY,JSON.stringify(db))}
 function saveDBLocalOnly(){localStorage.setItem(KEY,JSON.stringify(db))}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
-function loadAuth(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'{}')}catch(e){return {}}}
-function saveAuth(){localStorage.setItem(AUTH_KEY,JSON.stringify(auth||{}))}
-function clearAuth(){auth={};localStorage.removeItem(AUTH_KEY)}
-function openLogin(){document.getElementById('loginPanel').style.display='flex';setTimeout(()=>document.getElementById('loginUser').focus(),50)}
+function openLogin(){document.getElementById('loginPanel').style.display='flex';setTimeout(()=>document.getElementById('loginPass').focus(),50)}
 function closeLogin(){document.getElementById('loginPanel').style.display='none';document.getElementById('loginPass').value=''}
 async function api(action,payload={}){
   if(!scriptConfigured())throw new Error('Google Sheet is not connected yet');
-  const res=await fetch(GOOGLE_SCRIPT_URL,{method:'POST',body:JSON.stringify({action,token:auth.token||'',payload})});
-  const data=await res.json();
+  const res=await fetch(GOOGLE_SCRIPT_URL,{method:'POST',body:JSON.stringify({action,payload:{...payload,password:editPassword}})});
+  const text=await res.text();
+  let data;
+  try{data=JSON.parse(text)}
+  catch(parseErr){
+    const snippet=text.slice(0,200).replace(/\s+/g,' ').trim();
+    throw new Error('HTTP '+res.status+' — server returned: '+(snippet||'(empty response)'));
+  }
   if(!data.ok)throw new Error(data.error||'Request failed');
   return data;
 }
@@ -276,42 +277,23 @@ function normalizeLoadedDb(incoming){
   if(!incoming)return incoming;
   return normalizeDb(incoming);
 }
-function getPublicDataJsonp(){
-  return new Promise((resolve,reject)=>{
-    if(!scriptConfigured())return reject(new Error('Google Sheet is not connected yet'));
-    const cb='aptitudePublicData_'+Date.now()+'_'+Math.floor(Math.random()*100000);
-    const script=document.createElement('script');
-    const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
-    window[cb]=(data)=>{cleanup();data&&data.ok?resolve(data):reject(new Error((data&&data.error)||'Public data request failed'))};
-    function cleanup(){try{delete window[cb]}catch(e){window[cb]=undefined} if(script.parentNode)script.parentNode.removeChild(script)}
-    script.onerror=()=>{cleanup();reject(new Error('Could not load public Google Sheet data'))};
-    script.src=GOOGLE_SCRIPT_URL+sep+'action=getPublicData&callback='+encodeURIComponent(cb)+'&ts='+Date.now();
-    document.head.appendChild(script);
-    setTimeout(()=>{if(window[cb]){cleanup();reject(new Error('Public data request timed out'))}},15000);
-  });
-}
-async function getPublicDataDirect(){
-  if(!scriptConfigured())throw new Error('Google Sheet is not connected yet');
-  const sep=GOOGLE_SCRIPT_URL.includes('?')?'&':'?';
-  const res=await fetch(GOOGLE_SCRIPT_URL+sep+'action=getPublicData&ts='+Date.now());
-  const data=await res.json();
-  if(!data||!data.ok)throw new Error((data&&data.error)||'Public data request failed');
-  return data;
-}
 async function loginAdmin(){
+  const password=document.getElementById('loginPass').value;
+  if(!password)return toast('Enter the edit password');
+  const prev=editPassword;
+  editPassword=password;
   try{
-    const username=document.getElementById('loginUser').value.trim();
-    const password=document.getElementById('loginPass').value;
-    if(!username||!password)return toast('Enter username and password');
-    const data=await api('login',{username,password});
-    auth={token:data.token,username:data.username,role:data.role,expiresAt:data.expiresAt};saveAuth();
-    role='editor'; closeLogin();
-    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly()}
+    await api('checkPassword',{});
+    localStorage.setItem(PASS_KEY,editPassword);
+    role='editor';closeLogin();
     cloudReady=true;lastSyncAt=new Date();lastSyncError=null;
-    initSessionFromDate(); renderAll(); toast('Admin login successful ✓');
-  }catch(e){toast('Login failed: '+e.message)}
+    renderAll();toast('Editing unlocked ✓');
+  }catch(e){
+    editPassword=prev;
+    toast('Could not unlock editing: '+e.message);
+  }
 }
-function logoutAdmin(){clearAuth();role='viewer';renderAll();toast('Logged out. Editing is now locked.')}
+function logoutAdmin(){editPassword='';localStorage.removeItem(PASS_KEY);role='viewer';renderAll();toast('Editing locked.')}
 async function refreshFromCloud(silent=false){
   if(!scriptConfigured()){cloudReady=false;updateModeUI();return}
   try{
@@ -320,23 +302,32 @@ async function refreshFromCloud(silent=false){
     if(!silent)toast('Records loaded from Google Sheet ✓');
   }catch(e){cloudReady=false;lastSyncError=(e&&e.message||String(e));updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
 }
-async function validateSavedLogin(){
-  if(!auth.token){role='viewer';return}
+// Every save below writes straight to its own row in the Sheet — no whole-database
+// merge, no session tokens. If the password is wrong or the request fails, the sync
+// chip turns red and shows exactly why; your data is always safe locally either way.
+async function pushToCloud(action,payload,label){
+  if(!scriptConfigured()||!editPassword)return;
   try{
-    const data=await api('validate',{});
-    role=data.role==='admin'||data.role==='editor'?'editor':'viewer';
-    if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly()}
-    cloudReady=true;lastSyncAt=new Date();lastSyncError=null;
-  }catch(e){clearAuth();role='viewer'}
+    await api(action,payload);
+    cloudReady=true;lastSyncAt=new Date();lastSyncError=null;updateModeUI();
+  }catch(e){
+    cloudReady=false;lastSyncError=label+': '+(e&&e.message||e);updateModeUI();
+    toast('Google Sheet sync failed: '+e.message);
+  }
 }
-function queueCloudSync(){
-  if(!scriptConfigured()||isViewer()||!auth.token)return;
-  clearTimeout(syncTimer);
-  syncTimer=setTimeout(async()=>{
-    try{await api('saveFullDB',{db});cloudReady=true;lastSyncAt=new Date();lastSyncError=null;updateModeUI()}
-    catch(e){toast('Google Sheet sync failed: '+e.message);cloudReady=false;lastSyncError='save: '+(e&&e.message||e);updateModeUI()}
-  },700);
+function pushDailyEntryToCloud(entry){return pushToCloud('saveDailyEntry',{entry},'save entry')}
+function pushDeleteDailyEntryToCloud(entryDate,branchId){return pushToCloud('deleteDailyEntry',{entryDate,branchId},'delete entry')}
+function pushEventToCloud(ev){return pushToCloud('saveEvent',{event:ev},'save event')}
+function pushDeleteEventToCloud(id){return pushToCloud('deleteEvent',{id},'delete event')}
+function pushBudgetToCloud(yearMonth,branchId){
+  const b=(db.budgets[yearMonth]||{})[branchId]||{sales:0,cost:0};
+  return pushToCloud('saveBudget',{budget:{yearMonth,branchId,sales:b.sales||0,cost:b.cost||0}},'save budget');
 }
+function pushBreakevenToCloud(yearMonth){
+  const b=getBreakeven(yearMonth);
+  return pushToCloud('saveBreakeven',{breakeven:{yearMonth,orders:b.orders||0,sales:b.sales||0}},'save target');
+}
+function pushBranchesToCloud(){return pushToCloud('saveBranches',{branches:db.branches},'save branches')}
 function updateModeUI(){
   const tools=document.getElementById('dataBackupTools');if(tools)tools.style.display=isViewer()?'none':'flex';
   const lb=document.getElementById('loginBtn');if(lb)lb.style.display=isViewer()?'inline-block':'none';
@@ -424,10 +415,21 @@ function saveB(bid){
   applyAutoMix(session[bid]);
   session[bid].saved=true;
   if(!db.daily[entryDate])db.daily[entryDate]={};
-  db.daily[entryDate][bid]={...session[bid],saved:true,updatedAt:new Date().toISOString()};
-  saveDB();toast(branchById(bid).name+' saved for '+entryDate+' ✓');renderEntry();
+  const entry={...session[bid],saved:true,updatedAt:new Date().toISOString()};
+  db.daily[entryDate][bid]=entry;
+  saveDBLocalOnly();
+  pushDailyEntryToCloud({...entry,entryDate,branchId:bid});
+  toast(branchById(bid).name+' saved for '+entryDate+' ✓');renderEntry();
 }
-function delDay(d){if(isViewer())return toast('Editing is available after admin login');delete db.daily[d];saveDB();toast('Deleted '+d);renderHistory()}
+function delDay(d){
+  if(isViewer())return toast('Editing is available after admin login');
+  const dayData=db.daily[d]||{};
+  const branchIds=Object.keys(dayData);
+  delete db.daily[d];
+  saveDBLocalOnly();
+  branchIds.forEach(bid=>pushDeleteDailyEntryToCloud(d,bid));
+  toast('Deleted '+d);renderHistory();
+}
 function renderEntry(){
   const bs=branches(); if(!bs.length){document.getElementById('view-entry').innerHTML='<div class="empty">No active branches. Add a branch in Branchwise budgeting.</div>';return}
   const b=bs[activeB],d=applyAutoMix(session[b.id]); const exV=d.gross/1.05,vatA=d.gross-exV,payT=(d.cash||0)+(d.visa||0)+(d.master||0)+(d.bank||0)+(d.talabat||0)+(d.deliveroo||0),diff=Math.abs(d.gross-payT),payOk=d.gross===0||diff<.05,mixT=(d.food||0)+(d.bev||0)+(d.retail||0),mixOk=mixT===0||Math.abs(exV-mixT)<.5;
@@ -836,18 +838,21 @@ function renderAnalysis(){
 function renderHistory(){const el=document.getElementById('view-history'),days=Object.keys(db.daily).sort().reverse().slice(0,90);if(!days.length){el.innerHTML='<div class="empty">No history yet.</div>';return}const rows=days.map(d=>{const total=branches().reduce((s,b)=>s+(db.daily[d]?.[b.id]?.gross||0),0),bcount=branches().filter(b=>db.daily[d]?.[b.id]?.gross>0).length;return `<div class="hist-row"><div><div class="hist-date">${dateLbl(d)}</div><div class="hist-sub">${bcount} branch${bcount!==1?'es':''}</div></div><div class="hist-amt"><div class="main">${fmt(total)}</div><div class="sub">${fmtN(total/1.05)} ex. VAT</div></div>${isEditor()?`<button class="del-btn" onclick="delDay('${d}')" title="Delete">✕</button>`:''}</div>`}).join('');el.innerHTML=`<div class="card"><div class="card-header"><div class="card-title">History</div><div class="card-sub">Last 90 saved days</div></div>${rows}</div>`}
 function budgetKey(){return selectedMonth}
 function getBudget(k=budgetKey()){if(!db.budgets[k])db.budgets[k]={};return db.budgets[k]}
-function saveBudgetValue(bid,field,val){if(isViewer())return;const k=budgetKey();if(!db.budgets[k])db.budgets[k]={};if(!db.budgets[k][bid])db.budgets[k][bid]={sales:0,cost:0};db.budgets[k][bid][field]=parseFloat(val)||0;saveDB()}
+function saveBudgetValue(bid,field,val){if(isViewer())return;const k=budgetKey();if(!db.budgets[k])db.budgets[k]={};if(!db.budgets[k][bid])db.budgets[k][bid]={sales:0,cost:0};db.budgets[k][bid][field]=parseFloat(val)||0;saveDBLocalOnly();pushBudgetToCloud(k,bid)}
 function updateBudgetValue(bid,field,val){saveBudgetValue(bid,field,val);renderBudget()}
 function clearBudgetMonth(){
   if(isViewer())return;
   if(!confirm('Clear all budget amounts for the selected month?'))return;
-  db.budgets[budgetKey()]={};
-  saveDB();
+  const k=budgetKey();
+  const branchIds=Object.keys(db.budgets[k]||{});
+  db.budgets[k]={};
+  saveDBLocalOnly();
+  branchIds.forEach(bid=>pushBudgetToCloud(k,bid));
   renderBudget();
   toast('Budget form cleared for selected month.');
 }
-function addBranch(){if(isViewer())return;const name=(document.getElementById('newBranchName').value||'').trim();if(!name)return toast('Enter branch name');let id=sanitizeId(name);if(db.branches.some(b=>b.id===id))id=id+'_'+Date.now();const colors=['#2563EB','#16A34A','#D97706','#9333EA','#0D9488','#DC2626','#0891B2','#4F46E5','#BE185D'];db.branches.push({id,name,color:colors[db.branches.length%colors.length],active:true});saveDB();initSessionFromDate();toast('Branch added ✓');renderBudget()}
-function toggleBranch(id){if(isViewer())return;const b=db.branches.find(x=>x.id===id);if(b){b.active=!b.active;saveDB();initSessionFromDate();renderBudget()}}
+function addBranch(){if(isViewer())return;const name=(document.getElementById('newBranchName').value||'').trim();if(!name)return toast('Enter branch name');let id=sanitizeId(name);if(db.branches.some(b=>b.id===id))id=id+'_'+Date.now();const colors=['#2563EB','#16A34A','#D97706','#9333EA','#0D9488','#DC2626','#0891B2','#4F46E5','#BE185D'];db.branches.push({id,name,color:colors[db.branches.length%colors.length],active:true});saveDBLocalOnly();pushBranchesToCloud();initSessionFromDate();toast('Branch added ✓');renderBudget()}
+function toggleBranch(id){if(isViewer())return;const b=db.branches.find(x=>x.id===id);if(b){b.active=!b.active;saveDBLocalOnly();pushBranchesToCloud();initSessionFromDate();renderBudget()}}
 function daysInMonth(monthKey){const [y,m]=monthKey.split('-').map(Number);return new Date(y,m,0).getDate()}
 function renderBudgetTrend(monthKey,totalSalesBudget,totalCostBudget){
   const dim=daysInMonth(monthKey), dailySalesTarget=totalSalesBudget/dim, dailyCostTarget=totalCostBudget/dim;
@@ -917,7 +922,8 @@ function updateBreakevenValue(field,val){
   if(!db.breakeven)db.breakeven={};
   if(!db.breakeven[k])db.breakeven[k]={orders:0,sales:0};
   db.breakeven[k][field]=parseFloat(val)||0;
-  saveDB();
+  saveDBLocalOnly();
+  pushBreakevenToCloud(k);
   renderBreakeven();
 }
 /* ============ ARC Al Nahyan — branch-scoped full report helpers ============ */
@@ -1187,14 +1193,18 @@ function saveEvent(){
   if(!db.events)db.events=[];
   const savedDate=normalizeDateKeyClient(eventForm.date)||eventForm.date||today();
   eventForm.date=savedDate;
+  let savedRecord;
   if(editingEventId){
     const idx=db.events.findIndex(e=>e.id===editingEventId);
-    if(idx>-1)db.events[idx]={...eventForm,id:editingEventId,updatedAt:new Date().toISOString()};
+    savedRecord={...eventForm,id:editingEventId,updatedAt:new Date().toISOString()};
+    if(idx>-1)db.events[idx]=savedRecord;
   }else{
     const id='evt_'+Date.now();
-    db.events.push({...eventForm,id,updatedAt:new Date().toISOString()});
+    savedRecord={...eventForm,id,updatedAt:new Date().toISOString()};
+    db.events.push(savedRecord);
   }
-  saveDB();
+  saveDBLocalOnly();
+  pushEventToCloud(savedRecord);
   editingEventId=null;
   eventForm={...blankEvent(),date:savedDate};
   toast('Event saved ✓ — form is ready for another event on the same date.');
@@ -1205,7 +1215,8 @@ function deleteEvent(id){
   if(!confirm('Delete this event record?'))return;
   db.events=(db.events||[]).filter(e=>e.id!==id);
   if(editingEventId===id){editingEventId=null;eventForm=blankEvent();}
-  saveDB();
+  saveDBLocalOnly();
+  pushDeleteEventToCloud(id);
   toast('Event deleted');
   renderEvents();
 }
@@ -1387,12 +1398,12 @@ function exportPDF(){
   setTimeout(cleanup,1200);
 }
 function downloadBackup(){if(isViewer())return toast('Editing is available after admin login');const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='aptitude-dashboard-data-backup-'+today()+'.json';a.click();URL.revokeObjectURL(url);toast('Data backup downloaded ✓')}
-function restoreBackup(ev){if(isViewer()){ev.target.value='';return toast('Editing is available after admin login')}const file=ev.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported.daily||!imported.branches)throw new Error('Invalid file');db=normalizeDb(imported);role=auth.token?'editor':'viewer';saveDB();initSessionFromDate();renderAll();toast('Data backup restored ✓')}catch(e){toast('Restore failed: please choose a valid backup file')}};reader.readAsText(file);ev.target.value=''}
+function restoreBackup(ev){if(isViewer()){ev.target.value='';return toast('Editing is available after admin login')}const file=ev.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported.daily||!imported.branches)throw new Error('Invalid file');db=normalizeDb(imported);role=editPassword?'editor':'viewer';saveDBLocalOnly();initSessionFromDate();renderAll();toast('Data backup restored locally ✓ — note: this does not push to the Google Sheet automatically, only new saves do')}catch(e){toast('Restore failed: please choose a valid backup file')}};reader.readAsText(file);ev.target.value=''}
 document.getElementById('datechip').textContent=todayLbl();
 (async function startDashboard(){
+  role=editPassword?'editor':'viewer';
   initSessionFromDate();updateModeUI();renderSummary();
-  await validateSavedLogin();
-  if(scriptConfigured()&&!cloudReady) await refreshFromCloud(true);
+  if(scriptConfigured()) await refreshFromCloud(true);
   initSessionFromDate();renderAll();
 })();
 </script>
