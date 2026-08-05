@@ -314,22 +314,11 @@ async function loginAdmin(){
 function logoutAdmin(){clearAuth();role='viewer';renderAll();toast('Logged out. Editing is now locked.')}
 async function refreshFromCloud(silent=false){
   if(!scriptConfigured()){cloudReady=false;updateModeUI();return}
-  const attempts=[];
   try{
-    let data;
-    try{data=await getPublicDataDirect()}
-    catch(directErr){
-      attempts.push('direct: '+(directErr&&directErr.message||directErr));
-      try{data=await getPublicDataJsonp()}
-      catch(jsonpErr){
-        attempts.push('jsonp: '+(jsonpErr&&jsonpErr.message||jsonpErr));
-        try{data=await api('getPublicData',{})}
-        catch(postErr){attempts.push('post: '+(postErr&&postErr.message||postErr));throw postErr}
-      }
-    }
+    const data=await api('getPublicData',{});
     if(data.db){db=normalizeLoadedDb(data.db);saveDBLocalOnly();cloudReady=true;lastSyncAt=new Date();lastSyncError=null;initSessionFromDate();renderAll()}
     if(!silent)toast('Records loaded from Google Sheet ✓');
-  }catch(e){cloudReady=false;lastSyncError=attempts.length?attempts.join(' | '):(e&&e.message||String(e));updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
+  }catch(e){cloudReady=false;lastSyncError=(e&&e.message||String(e));updateModeUI();if(!silent)toast('Could not load Google Sheet data: '+e.message)}
 }
 async function validateSavedLogin(){
   if(!auth.token){role='viewer';return}
