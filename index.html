@@ -104,10 +104,8 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
         <label class="btn" style="flex:0;padding:7px 12px;cursor:pointer" title="For admin use: restores dashboard data from a backup file">Restore Data Backup<input type="file" accept="application/json" style="display:none" onchange="restoreBackup(event)"></label>
       </span>
       <span class="date-chip" id="datechip"></span>
-      <span class="sync-chip" id="syncChip">Cloud sync: checking…</span>
     </div>
   </div>
-  <div id="syncWarningBanner" class="danger-box" style="display:none;margin-bottom:16px"></div>
   <div class="nav">
     <button class="nav-btn" onclick="showView('entry')" id="nb-entry">Daily entry</button>
     <button class="nav-btn active" onclick="showView('summary')" id="nb-summary">Today's summary</button>
@@ -196,6 +194,7 @@ const monthList=()=>Array.from({length:12},(_,i)=>({num:i+1,name:new Date(2026,i
 function setSelectedMonthParts(prefix){const m=document.getElementById(prefix+'Month').value,y=document.getElementById(prefix+'Year').value;selectedMonth=y+'-'+String(m).padStart(2,'0');renderCurrent()}
 function monthPicker(prefix='report'){const [y,m]=(selectedMonth||today().substring(0,7)).split('-').map(Number);return `<div class="fld"><label>Selected month</label><select id="${prefix}Month" onchange="setSelectedMonthParts('${prefix}')">${monthList().map(x=>`<option value="${x.num}" ${x.num===m?'selected':''}>${x.name}</option>`).join('')}</select></div><div class="fld"><label>Year</label><select id="${prefix}Year" onchange="setSelectedMonthParts('${prefix}')">${getYears().map(yy=>`<option value="${yy}" ${yy===y?'selected':''}>${yy}</option>`).join('')}</select></div>`}
 function shiftDate(d,days){const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+days);return x.toISOString().split('T')[0]}
+function shiftYear(d,delta){const x=new Date(d+'T12:00:00');x.setFullYear(x.getFullYear()+delta);return x.toISOString().split('T')[0]}
 function applyAutoMix(e){const g=Number(e.gross||0);e.food=round2(g*.75);e.bev=round2(g*.20);e.retail=round2(g*.05);e.costOfSales=round2(g*.27);e.dineInSales=round2(Math.max(0,g-(Number(e.takeawaySales||0)+Number(e.thirdPartySales||0))));return e}
 function ensureEntryShape(e){return applyAutoMix({...blankEntry(),...(e||{})})}
 function migrateBranches(d){
@@ -328,34 +327,28 @@ function pushBreakevenToCloud(yearMonth){
   return pushToCloud('saveBreakeven',{breakeven:{yearMonth,orders:b.orders||0,sales:b.sales||0}},'save target');
 }
 function pushBranchesToCloud(){return pushToCloud('saveBranches',{branches:db.branches},'save branches')}
+function getYoyManual(reportDate,bid){
+  const rec=(db.yoyManual&&db.yoyManual[reportDate]&&db.yoyManual[reportDate][bid])||{};
+  return {sameDay:rec.sameDay||0,sameWeek:rec.sameWeek||0};
+}
+function pushYoyManualToCloud(reportDate,bid){
+  const rec=getYoyManual(reportDate,bid);
+  return pushToCloud('saveYoyManual',{yoy:{reportDate,branchId:bid,sameDay:rec.sameDay,sameWeek:rec.sameWeek}},'save YoY figure');
+}
+function updateYoyManual(reportDate,bid,field,val){
+  if(isViewer())return;
+  if(!db.yoyManual)db.yoyManual={};
+  if(!db.yoyManual[reportDate])db.yoyManual[reportDate]={};
+  if(!db.yoyManual[reportDate][bid])db.yoyManual[reportDate][bid]={sameDay:0,sameWeek:0};
+  db.yoyManual[reportDate][bid][field]=parseFloat(val)||0;
+  saveDBLocalOnly();
+  pushYoyManualToCloud(reportDate,bid);
+  renderSummary();
+}
 function updateModeUI(){
   const tools=document.getElementById('dataBackupTools');if(tools)tools.style.display=isViewer()?'none':'flex';
   const lb=document.getElementById('loginBtn');if(lb)lb.style.display=isViewer()?'inline-block':'none';
   const lo=document.getElementById('logoutBtn');if(lo)lo.style.display=isEditor()?'inline-block':'none';
-  updateSyncStatusUI();
-}
-function updateSyncStatusUI(){
-  const chip=document.getElementById('syncChip'),banner=document.getElementById('syncWarningBanner');
-  if(!chip)return;
-  const syncedLbl=lastSyncAt?lastSyncAt.toLocaleTimeString('en-AE',{hour:'2-digit',minute:'2-digit'}):null;
-  if(!scriptConfigured()){
-    chip.textContent='Cloud sync: not set up';
-    chip.style.cssText='';
-    if(banner)banner.style.display='none';
-    return;
-  }
-  if(cloudReady){
-    chip.textContent='☁ Cloud sync: connected'+(syncedLbl?(' · '+syncedLbl):'');
-    chip.style.cssText='background:var(--green-bg);color:var(--green);border-color:#BBF7D0;font-weight:600';
-    if(banner)banner.style.display='none';
-  }else{
-    chip.textContent='⚠ Cloud sync: offline — saving to this device only';
-    chip.style.cssText='background:var(--red-bg);color:var(--red);border-color:#FECACA;font-weight:600';
-    if(banner){
-      banner.style.display='block';
-      banner.innerHTML=`<b>⚠ Not connected to the shared Google Sheet.</b> Anything you enter right now is only being saved in <u>this browser</u> — it will not show up on other devices, other browsers, or a freshly-opened copy of this file until sync is restored.${lastSyncError?`<div style="margin-top:6px;font-family:'DM Mono',monospace;font-size:11px;color:#7A1E1E;word-break:break-word">Details: ${lastSyncError}</div>`:''}`;
-    }
-  }
 }
 function initSessionFromDate(){
   session={}; branches().forEach(b=>session[b.id]=ensureEntryShape(db.daily[entryDate]?.[b.id]));
@@ -678,12 +671,43 @@ function renderBranchTable(agg,t,title,subtitle,cmp=null){
   const wowFooter=cmpAgg?`<td>${branchWowCell(t.gross||0,cmpT?.gross||0)}</td>`:'';
   return `<div class="card"><div class="card-header"><div class="card-title">${title}</div><div class="card-sub">${subtitle}</div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Gross</th><th>Ex. VAT</th><th>COGS</th><th>Gross profit</th><th>GP %</th><th>Discounts</th><th>Covers</th><th>Txn/Days</th><th>Share</th>${wowHeader}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td>${fmtN(t.gross)}</td><td>${fmtN(t.exv)}</td><td>${fmtN(t.costOfSales)}</td><td>${fmtN(t.grossProfit)}</td><td>${ratio(t.grossProfit,t.exv)}</td><td>${fmtN(t.discounts)}</td><td>${t.covers}</td><td>${t.transactions}</td><td>100%</td>${wowFooter}</tr></tfoot></table></div></div>`}
 function renderBars(agg,t,title){const bars=branches().slice().sort((a,z)=>(agg[z.id]?.gross||0)-(agg[a.id]?.gross||0)).filter(b=>(agg[b.id]?.gross||0)>0).map(b=>{const pctv=t.gross>0?(agg[b.id].gross/t.gross*100):0;return `<div class="bar-row"><div class="bar-lbl">${b.name}</div><div class="bar-track"><div class="bar-fill" style="width:${pctv.toFixed(1)}%;background:${b.color}"></div></div><div class="bar-val">${fmt(agg[b.id].gross)}</div></div>`}).join('')||'<div class="empty">No branch sales to show.</div>';return `<div class="card"><div class="card-header"><div class="card-title">${title}</div></div><div class="bar-section">${bars}</div></div>`}
+function branchGrossForDay(d,bid){return db.daily[d]?.[bid]?.gross||0}
+function branchGrossForWeek(endDate,bid){
+  let sum=0;
+  for(let i=0;i<7;i++)sum+=branchGrossForDay(shiftDate(endDate,-i),bid);
+  return sum;
+}
+function renderYoyComparison(reportDate){
+  const lastYearDay=shiftYear(reportDate,-1);
+  const disabled=isViewer()?'disabled':'';
+  const rows=branches().map(b=>{
+    const todaySales=branchGrossForDay(reportDate,b.id);
+    const todayWeek=branchGrossForWeek(reportDate,b.id);
+    const autoSameDay=branchGrossForDay(lastYearDay,b.id);
+    const autoSameWeek=branchGrossForWeek(lastYearDay,b.id);
+    const manual=getYoyManual(reportDate,b.id);
+    const hasAutoDay=autoSameDay>0,hasAutoWeek=autoSameWeek>0;
+    const sameDayVal=hasAutoDay?autoSameDay:manual.sameDay;
+    const sameWeekVal=hasAutoWeek?autoSameWeek:manual.sameWeek;
+    const dayVarPct=sameDayVal?((todaySales-sameDayVal)/sameDayVal*100):null;
+    const weekVarPct=sameWeekVal?((todayWeek-sameWeekVal)/sameWeekVal*100):null;
+    const varCell=v=>v==null?'<span style="color:var(--hint)">—</span>':`<span class="${v>=0?'pos':'neg'}" style="font-weight:600">${v>=0?'▲':'▼'} ${Math.abs(v).toFixed(1)}%</span>`;
+    const dayCell=hasAutoDay
+      ?`${fmtN(autoSameDay)} <span style="color:var(--hint);font-size:10px">(auto)</span>`
+      :(isEditor()?`<input type="number" min="0" step="0.01" value="${manual.sameDay||''}" onchange="updateYoyManual('${reportDate}','${b.id}','sameDay',this.value)" style="width:100px;padding:5px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace" placeholder="Enter" ${disabled}/>`:(manual.sameDay?fmtN(manual.sameDay)+' (manual)':'<span style="color:var(--hint)">—</span>'));
+    const weekCell=hasAutoWeek
+      ?`${fmtN(autoSameWeek)} <span style="color:var(--hint);font-size:10px">(auto)</span>`
+      :(isEditor()?`<input type="number" min="0" step="0.01" value="${manual.sameWeek||''}" onchange="updateYoyManual('${reportDate}','${b.id}','sameWeek',this.value)" style="width:100px;padding:5px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace" placeholder="Enter" ${disabled}/>`:(manual.sameWeek?fmtN(manual.sameWeek)+' (manual)':'<span style="color:var(--hint)">—</span>'));
+    return `<tr><td class="outlet-name"><span class="bdot" style="background:${b.color}"></span>${b.name}</td><td>${fmtN(todaySales)}</td><td>${dayCell}</td><td>${varCell(dayVarPct)}</td><td>${fmtN(todayWeek)}</td><td>${weekCell}</td><td>${varCell(weekVarPct)}</td></tr>`;
+  }).join('');
+  return `<div class="card"><div class="card-header"><div><div class="card-title">Year-over-year comparison — outlet-wise</div><div class="card-sub">${dateLbl(reportDate)} vs ${dateLbl(lastYearDay)} (same day last year), and the trailing 7-day week ending each date. "(auto)" figures come from saved Daily Entry history — type a value only where none exists, e.g. a branch that opened this year.</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Today</th><th>Same day last year</th><th>Day vs LY</th><th>This week</th><th>Same week last year</th><th>Week vs LY</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
 function renderSummary(){
   const d=selectedDay||today(),days=[d],agg=aggregate(days),t=totalsFromAgg(agg),el=document.getElementById('view-summary'),lbl=dateLbl(d);
   const eventsT=eventsTotalsForDays(days);
   if(t.gross<=0&&!eventsT.count){el.innerHTML=reportFilters('day')+`<div class="empty"><div>No data saved for ${lbl}.</div><div style="margin-top:6px;font-size:12px">Select another date, or ask an admin to save Daily Entry data for this date.</div></div>`;return}
   const lastWeekDate=shiftDate(d,-7),lastWeekDays=[lastWeekDate],lastAgg=aggregate(lastWeekDays),lastT=totalsFromAgg(lastAgg);
-  el.innerHTML=reportFilters('day')+renderMetricBlock(t,'Daily',lbl)+renderCombinedTotalsCard(t,eventsT,'Daily')+renderReportCharts(agg,t,days,'Daily')+renderRatioAnalysis(t,'Daily ratio analysis')+renderBranchTable(agg,t,'Branch breakdown',lbl,{agg:lastAgg,t:lastT})+renderBars(agg,t,'Sales contribution')+renderEventsForPeriodCard(dt=>dt===d,'Daily');
+  el.innerHTML=reportFilters('day')+renderMetricBlock(t,'Daily',lbl)+renderCombinedTotalsCard(t,eventsT,'Daily')+renderReportCharts(agg,t,days,'Daily')+renderRatioAnalysis(t,'Daily ratio analysis')+renderBranchTable(agg,t,'Branch breakdown',lbl,{agg:lastAgg,t:lastT})+renderBars(agg,t,'Sales contribution')+renderYoyComparison(d)+renderEventsForPeriodCard(dt=>dt===d,'Daily');
 }
 function getMtdCommentary(days){
   const momDays=priorComparablePeriod(days);
