@@ -116,6 +116,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
     <button class="nav-btn" onclick="showView('budget')" id="nb-budget">Branchwise budgeting</button>
     <button class="nav-btn" onclick="showView('breakeven')" id="nb-breakeven">ARC Al Nahyan Delivery</button>
     <button class="nav-btn" onclick="showView('events')" id="nb-events">Events</button>
+    <button class="nav-btn" onclick="showView('yoy')" id="nb-yoy">Last Year Data</button>
   </div>
   <div class="print-only" id="printHeader" style="margin-bottom:14px">
     <div style="font-size:12px;color:#555">Generated report</div>
@@ -131,6 +132,7 @@ html{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exac
   <div id="view-budget" style="display:none"></div>
   <div id="view-breakeven" style="display:none"></div>
   <div id="view-events" style="display:none"></div>
+  <div id="view-yoy" style="display:none"></div>
 </div>
 <div id="dailyPdfReport"></div>
 <div class="login-panel" id="loginPanel">
@@ -355,8 +357,8 @@ function initSessionFromDate(){
   if(activeB>=branches().length)activeB=0;
 }
 function setEntryDate(v){entryDate=v||today();initSessionFromDate();renderEntry()}
-function showView(v){curView=v;['entry','summary','mtd','ytd','analysis','history','budget','breakeven','events'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
-function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='analysis')renderAnalysis();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else renderEntry()}
+function showView(v){curView=v;['entry','summary','mtd','ytd','analysis','history','budget','breakeven','events','yoy'].forEach(id=>{document.getElementById('view-'+id).style.display=id===v?'block':'none';document.getElementById('nb-'+id).classList.toggle('active',id===v)});renderCurrent()}
+function renderCurrent(){if(curView==='summary')renderSummary();else if(curView==='mtd')renderMTD();else if(curView==='ytd')renderYTD();else if(curView==='analysis')renderAnalysis();else if(curView==='history')renderHistory();else if(curView==='budget')renderBudget();else if(curView==='breakeven')renderBreakeven();else if(curView==='events')renderEvents();else if(curView==='yoy')renderYoyEntry();else renderEntry()}
 function renderAll(){updateModeUI();renderCurrent()}
 function switchB(i){activeB=i;renderEntry()}
 function upd(bid,f,v){
@@ -528,6 +530,38 @@ function renderEventsForPeriodCard(pred,periodLabel){
   evs.forEach(e=>{const dt=normalizeDateKeyClient(e.date)||e.date;if(!groups[dt])groups[dt]=[];groups[dt].push(e)});
   const groupDates=Object.keys(groups).sort((a,z)=>z.localeCompare(a));
   return `<div class="section-lbl">${periodLabel} events</div>`+renderEventGroups(groupDates,groups);
+}
+const COMPENSATION_LABELS={revshare:'Revenue Share',fixed:'Fixed Amount',other:'Other agreement'};
+function renderEventsByNameTable(pred,periodLabel){
+  const evs=(db.events||[]).filter(e=>pred(normalizeDateKeyClient(e.date)||e.date||''));
+  if(!evs.length)return '';
+  const groups={};
+  evs.forEach(e=>{const key=(e.name||'').trim()||'(Unnamed event)';if(!groups[key])groups[key]=[];groups[key].push(e)});
+  const names=Object.keys(groups).sort((a,z)=>{
+    const latest=arr=>arr.reduce((m,e)=>{const dt=normalizeDateKeyClient(e.date)||e.date||'';return dt>m?dt:m},'');
+    return latest(groups[z]).localeCompare(latest(groups[a]));
+  });
+  const rows=names.map(name=>{
+    const occ=groups[name].slice().sort((a,z)=>{const da=normalizeDateKeyClient(a.date)||a.date||'',dz=normalizeDateKeyClient(z.date)||z.date||'';return da.localeCompare(dz)});
+    const startDate=occ[0].date,endDate=occ[occ.length-1].date,totalDays=occ.length;
+    const totalGross=occ.reduce((s,e)=>s+(e.gross||0),0),totalCommission=occ.reduce((s,e)=>s+(e.commission||0),0),totalNet=totalGross-totalCommission;
+    const totalReceivable=occ.reduce((s,e)=>s+eventArInfo(e).receivable,0);
+    const latestOcc=occ[occ.length-1];
+    const compType=COMPENSATION_LABELS[latestOcc.compensationType]||'—';
+    const compDetail=latestOcc.compensationType==='revshare'&&latestOcc.revenueSharePct?` (${latestOcc.revenueSharePct}%)`:'';
+    const groupKey='period_'+name;
+    const expanded=expandedEventNames.has(groupKey);
+    const summaryRow=`<tr style="cursor:pointer" onclick="toggleEventGroup('${groupKey.replace(/'/g,"\\'")}')"><td class="name"><span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;transition:transform .15s;transform:rotate(${expanded?90:0}deg);color:var(--hint);font-size:10px">▶</span>${name}</span></td><td>${dateLbl(startDate)}</td><td>${dateLbl(endDate)}</td><td>${totalDays}</td><td>${compType}${compDetail}</td><td>${fmtN(totalGross)}</td><td>${fmtN(totalCommission)}</td><td class="${totalNet>=0?'pos':'neg'}">${fmtN(totalNet)}</td><td>${totalReceivable>0.05?arBadge('receivable',totalReceivable):arBadge('received',0)}</td></tr>`;
+    if(!expanded)return summaryRow;
+    const detailRows=occ.map(e=>{
+      const net=(e.gross||0)-(e.commission||0),ar=eventArInfo(e);
+      return `<tr style="background:var(--bg)"><td class="name" style="padding-left:28px;font-weight:400;font-size:11px">${dateLbl(e.date)}</td><td colspan="3" style="font-size:11px;text-align:left">${e.organizer||'—'}</td><td style="font-size:11px">${fmtN(e.gross)}</td><td style="font-size:11px">${fmtN(e.commission||0)}</td><td class="${net>=0?'pos':'neg'}" style="font-size:11px">${fmtN(net)}</td><td>${arBadge(ar.status,ar.receivable)}</td></tr>`;
+    }).join('');
+    return summaryRow+detailRows;
+  }).join('');
+  const grand=names.reduce((s,name)=>{groups[name].forEach(e=>{s.gross+=e.gross||0;s.commission+=e.commission||0});return s},{gross:0,commission:0});
+  grand.net=grand.gross-grand.commission;
+  return `<div class="card"><div class="card-header"><div><div class="card-title">${periodLabel} events — by event</div><div class="card-sub">${names.length} unique event${names.length!==1?'s':''} — click a row for the daily breakdown</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Event</th><th>Start date</th><th>End date</th><th>Total days</th><th>Compensation</th><th>Total sale</th><th>Total commission</th><th>Net</th><th>AR status</th></tr></thead><tbody>${rows}</tbody></table><tfoot><tr><td style="font-family:'DM Sans',sans-serif;font-weight:600">Total</td><td></td><td></td><td></td><td></td><td>${fmtN(grand.gross)}</td><td>${fmtN(grand.commission)}</td><td>${fmtN(grand.net)}</td><td></td></tr></tfoot></table></div></div>`;
 }
 /* ============ End Events linking ============ */
 /* ============ Executive Commentary Engine (CEO Briefing) ============ */
@@ -702,6 +736,36 @@ function renderYoyComparison(reportDate){
   }).join('');
   return `<div class="card"><div class="card-header"><div><div class="card-title">Year-over-year comparison — outlet-wise</div><div class="card-sub">${dateLbl(reportDate)} vs ${dateLbl(lastYearDay)} (same day last year), and the trailing 7-day week ending each date. "(auto)" figures come from saved Daily Entry history — type a value only where none exists, e.g. a branch that opened this year.</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Today</th><th>Same day last year</th><th>Day vs LY</th><th>This week</th><th>Same week last year</th><th>Week vs LY</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
 }
+let yoyEntryDate=today();
+function setYoyEntryDate(v){yoyEntryDate=v||today();renderYoyEntry()}
+function renderYoyEntry(){
+  const el=document.getElementById('view-yoy');
+  const disabled=isViewer()?'disabled':'';
+  const lastYearDay=shiftYear(yoyEntryDate,-1);
+  const rows=branches().map(b=>{
+    const manual=getYoyManual(yoyEntryDate,b.id);
+    const autoSameDay=branchGrossForDay(lastYearDay,b.id);
+    const autoSameWeek=branchGrossForWeek(lastYearDay,b.id);
+    const dayCell=autoSameDay>0
+      ?`<span style="color:var(--muted)">${fmtN(autoSameDay)}</span><div class="small-note" style="margin:0">Auto — from Daily Entry</div>`
+      :`<input type="number" min="0" step="0.01" value="${manual.sameDay||''}" onchange="updateYoyManual('${yoyEntryDate}','${b.id}','sameDay',this.value)" style="width:150px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:13px" placeholder="0.00" ${disabled}/>`;
+    const weekCell=autoSameWeek>0
+      ?`<span style="color:var(--muted)">${fmtN(autoSameWeek)}</span><div class="small-note" style="margin:0">Auto — from Daily Entry</div>`
+      :`<input type="number" min="0" step="0.01" value="${manual.sameWeek||''}" onchange="updateYoyManual('${yoyEntryDate}','${b.id}','sameWeek',this.value)" style="width:150px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;text-align:right;font-family:'DM Mono',monospace;font-size:13px" placeholder="0.00" ${disabled}/>`;
+    return `<tr><td class="outlet-name"><span class="bdot" style="background:${b.color}"></span>${b.name}</td><td>${dayCell}</td><td>${weekCell}</td></tr>`;
+  }).join('');
+  const allDates=Object.keys(db.yoyManual||{}).sort((a,z)=>z.localeCompare(a));
+  const historyRows=allDates.map(dt=>{
+    const rec=db.yoyManual[dt]||{};
+    const filled=Object.keys(rec).filter(bid=>(rec[bid].sameDay>0||rec[bid].sameWeek>0));
+    if(!filled.length)return '';
+    return `<div class="hist-row" style="cursor:pointer" onclick="setYoyEntryDate('${dt}')"><div><div class="hist-date">${dateLbl(dt)}</div><div class="hist-sub">${filled.length} branch${filled.length!==1?'es':''} with manual figures — vs ${dateLbl(shiftYear(dt,-1))}</div></div><div class="hist-amt"><div class="main" style="color:var(--blue)">Edit →</div></div></div>`;
+  }).filter(Boolean).join('');
+  el.innerHTML=`
+  <div class="card"><div class="grid-2"><div class="fld"><label>This year's date</label><input type="date" value="${yoyEntryDate}" onchange="setYoyEntryDate(this.value)" ${disabled}></div><div class="fld"><label>Comparing against (last year, same date)</label><input value="${dateLbl(lastYearDay)}" disabled></div></div><div class="small-note">This feeds the "Year-over-year comparison" card on Today's Summary for this date. If Daily Entry already has data for a branch on ${dateLbl(lastYearDay)} (or its trailing 7-day week), that's used automatically and can't be edited here — you'll only see a box to type into where no history exists, e.g. a branch opened after that date.</div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">Enter last year's sales</div><div class="card-sub">${dateLbl(yoyEntryDate)} vs ${dateLbl(lastYearDay)}</div></div></div><div class="tbl-wrap"><table><thead><tr><th>Outlet</th><th>Same day last year</th><th>Same week last year</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+  <div class="card"><div class="card-header"><div><div class="card-title">History</div><div class="card-sub">Dates that already have manual figures — click one to jump back and edit</div></div></div>${historyRows||'<div class="empty">No manual figures entered yet. Pick a date above and fill in any branch missing automatic history.</div>'}</div>`;
+}
 function renderSummary(){
   const d=selectedDay||today(),days=[d],agg=aggregate(days),t=totalsFromAgg(agg),el=document.getElementById('view-summary'),lbl=dateLbl(d);
   const eventsT=eventsTotalsForDays(days);
@@ -739,7 +803,7 @@ function renderMTD(){
   if(!days.length&&!eventsT.count){el.innerHTML=mtdFilters()+'<div class="empty">No data for this selection yet.</div>';return}
   const agg=aggregate(days),t=totalsFromAgg(agg),lbl=mtdLabel(),ttl=mtdMode==='range'?'Selected range':'MTD';
   const commentaryItems=getMtdCommentary(days);
-  el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsForPeriodCard(inMtdPeriod,ttl);
+  el.innerHTML=mtdFilters()+renderMetricBlock(t,ttl,days.length+' days recorded — '+lbl)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsByNameTable(inMtdPeriod,ttl);
 }
 function buildTotalSalesYtdCommentary(days){
   const items=[];
@@ -777,7 +841,7 @@ function renderYTD(){
   if(!days.length&&!eventsT.count){el.innerHTML=ytdFilters()+`<div class="empty">No data for this selection yet.</div>`;return}
   const agg=aggregate(days),t=totalsFromAgg(agg),lbl=ytdLabel(),ttl=ytdMode==='range'?'Selected range':'YTD';
   const commentaryItems=getYtdCommentary(days);
-  el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsForPeriodCard(inYtdPeriod,ttl);
+  el.innerHTML=ytdFilters()+renderMetricBlock(t,ttl,`${days.length} days recorded — ${lbl}`)+renderCombinedTotalsCard(t,eventsT,ttl)+renderCommentaryCard(commentaryItems,'Executive Summary — CEO Briefing','Automated commentary comparing this period against historical data')+renderReportCharts(agg,t,days,ttl)+renderRatioAnalysis(t,ttl+' ratio analysis')+`<div class="chart-grid">${renderFinancialTrendChart(days,ttl+' financial trend')}</div>`+renderBranchTable(agg,t,ttl+' by branch',lbl)+renderBars(agg,t,ttl+' contribution')+renderEventsByNameTable(inYtdPeriod,ttl);
 }
 /* ============ Executive Analysis (lifetime / month-over-month, since YoY history isn't available yet) ============ */
 function monthlyAggregates(){
@@ -1151,7 +1215,7 @@ function renderBreakeven(){
     <div class="chart-card"><div class="chart-title">Sales: break even vs actual</div><div class="budget-bars"><div class="budget-bar-row"><div>Sales</div><div class="progress-track"><div class="progress-fill" style="width:${salesPct}%;background:${actualSales>=be.sales?'var(--green)':'var(--blue)'}"></div></div><div class="mono">${be.sales?ratio(actualSales,be.sales):'—'}</div></div></div></div>
   </div>`;
 }
-function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,cash:0,visa:0,master:0,bank:0,commission:0,notes:''}}
+function blankEvent(){return {id:'',name:'',date:today(),organizer:'',gross:0,cash:0,visa:0,master:0,bank:0,commission:0,notes:'',compensationType:'',revenueSharePct:0}}
 let eventForm=blankEvent();
 let expandedEventNames=new Set();
 function toggleEventGroup(name){
@@ -1185,16 +1249,34 @@ function arBadge(status,receivable){
 }
 function updEventField(f,v){
   if(isViewer())return;
-  if(f==='name'||f==='date'||f==='organizer'||f==='notes')eventForm[f]=v;
+  if(f==='name'||f==='date'||f==='organizer'||f==='notes'||f==='compensationType')eventForm[f]=v;
   else eventForm[f]=parseFloat(v)||0;
   if(f==='name'){
     const match=(db.events||[]).slice().reverse().find(e=>(e.name||'').trim().toLowerCase()===String(v).trim().toLowerCase());
     if(match){
       if(!eventForm.organizer){eventForm.organizer=match.organizer||'';setValue('event-organizer-input',eventForm.organizer)}
       if(!eventForm.notes&&match.notes){eventForm.notes=match.notes;setValue('event-notes-input',eventForm.notes)}
+      if(!eventForm.compensationType&&match.compensationType){
+        eventForm.compensationType=match.compensationType;
+        setValue('event-comptype-input',eventForm.compensationType);
+        if(match.compensationType==='revshare'&&match.revenueSharePct){
+          eventForm.revenueSharePct=match.revenueSharePct;
+          setValue('event-revshare-input',eventForm.revenueSharePct);
+        }
+        updateCompensationFieldsVisibility();
+      }
     }
   }
+  if(f==='compensationType')updateCompensationFieldsVisibility();
+  if((f==='revenueSharePct'||f==='gross')&&eventForm.compensationType==='revshare'&&eventForm.revenueSharePct){
+    eventForm.commission=round2((eventForm.gross||0)*eventForm.revenueSharePct/100);
+    setValue('event-commission-input',eventForm.commission||'');
+  }
   updateLiveEventForm();
+}
+function updateCompensationFieldsVisibility(){
+  const wrap=document.getElementById('event-revshare-wrap');
+  if(wrap)wrap.style.display=eventForm.compensationType==='revshare'?'flex':'none';
 }
 function updateLiveEventForm(){
   const exV=(eventForm.gross||0)/1.05,vatA=(eventForm.gross||0)-exV;
@@ -1316,7 +1398,8 @@ function renderEvents(){
     <div class="section-lbl">Payment breakdown — what's actually been received</div><div class="grid-4"><div class="fld"><label>Qlub (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.cash||''}" oninput="updEventField('cash',this.value)"></div><div class="fld"><label>Visa (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.visa||''}" oninput="updEventField('visa',this.value)"></div><div class="fld"><label>Mastercard (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.master||''}" oninput="updEventField('master',this.value)"></div><div class="fld"><label>Bank transfer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.bank||''}" oninput="updEventField('bank',this.value)"></div></div>
     <div id="event-pay-status">${!eventForm.gross?'':(formAr.status==='received'?`<div class="ok-box">✓ Fully received — payment breakdown matches gross sales.</div>`:`<div class="warn-box">⚠ AED ${fmtN(formAr.receivable)} still receivable from the organizer — payment breakdown (${fmtN(formAr.payT)}) is short of gross (${fmtN(eventForm.gross)}). Update this once payment is received to close it out.</div>`)}</div>
     <div class="small-note">Leave Qlub/Visa/Mastercard/Bank at 0 (or partial) if the organizer hasn't paid yet — the event will show as Receivable until you come back and fill in the amount actually received.</div>
-    <div class="section-lbl">Commission &amp; notes</div><div class="grid-2"><div class="fld"><label>Commission paid to organizer (AED)</label><input type="number" min="0" step="0.01" value="${eventForm.commission||''}" oninput="updEventField('commission',this.value)"></div><div class="fld"><label>Notes</label><input id="event-notes-input" value="${eventForm.notes||''}" oninput="updEventField('notes',this.value)" placeholder="Optional"></div></div>
+    <div class="section-lbl">Compensation agreement</div><div class="grid-2"><div class="fld"><label>Compensation type</label><select id="event-comptype-input" onchange="updEventField('compensationType',this.value)"><option value="" ${!eventForm.compensationType?'selected':''}>— Not set —</option><option value="revshare" ${eventForm.compensationType==='revshare'?'selected':''}>Revenue Share</option><option value="fixed" ${eventForm.compensationType==='fixed'?'selected':''}>Fixed Amount</option><option value="other" ${eventForm.compensationType==='other'?'selected':''}>Other agreement</option></select></div><div class="fld" id="event-revshare-wrap" style="display:${eventForm.compensationType==='revshare'?'flex':'none'}"><label>Revenue share %</label><input id="event-revshare-input" type="number" min="0" max="100" step="0.1" value="${eventForm.revenueSharePct||''}" oninput="updEventField('revenueSharePct',this.value)" placeholder="e.g. 15"></div></div>
+    <div class="section-lbl">Commission &amp; notes</div><div class="grid-2"><div class="fld"><label>Commission paid to organizer (AED)</label><input id="event-commission-input" type="number" min="0" step="0.01" value="${eventForm.commission||''}" oninput="updEventField('commission',this.value)"></div><div class="fld"><label>Notes</label><input id="event-notes-input" value="${eventForm.notes||''}" oninput="updEventField('notes',this.value)" placeholder="Optional"></div></div>
     <div class="btn-row"><button class="btn" onclick="newEventForm()">Clear</button><button class="btn primary" onclick="saveEvent()">${editingEventId?'Update event':'Save event'}</button></div>
   </div>`:'';
   const totals=filtered.reduce((s,e)=>{s.gross+=e.gross||0;s.commission+=e.commission||0;s.receivable+=eventArInfo(e).receivable;return s},{gross:0,commission:0,receivable:0});
